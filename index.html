@@ -7,57 +7,46 @@
 <title>Oog’s Majestic Cookie Vacuum</title>
 
 <style>
-/* ——— Global Resets ——— */
+/* ——— Global ——— */
 *{box-sizing:border-box;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif}
 html,body{
   touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none;
   overscroll-behavior:none;
 }
-body{
-  display:flex;flex-direction:column;align-items:center;color:#fff;
-  padding-top:env(safe-area-inset-top);
-}
+body{display:flex;flex-direction:column;align-items:center;color:#fff;
+     padding-top:env(safe-area-inset-top)}
 
-/* ——— Title & HUD ——— */
-h1{
-  margin:20px 0 10px;font-size:2rem;text-align:center;
-  background:rgba(0,0,0,.55);padding:8px 16px;border-radius:8px
-}
-#hud{
-  font-size:1.2rem;margin:0 0 8px;background:rgba(0,0,0,.55);
-  padding:6px 12px;border-radius:6px
-}
+/* ——— Header / HUD ——— */
+h1{margin:20px 0 10px;font-size:2rem;text-align:center;
+    background:rgba(0,0,0,.55);padding:8px 16px;border-radius:8px}
+#hud{font-size:1.2rem;margin-bottom:8px;background:rgba(0,0,0,.55);
+     padding:6px 12px;border-radius:6px}
 
-/* ——— Game Area ——— */
+/* ——— Game wrapper ——— */
 .game-wrapper{
   position:relative;width:100%;max-width:480px;aspect-ratio:3/4;
   box-shadow:0 4px 24px rgba(0,0,0,.18);overflow:hidden
 }
 .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
-canvas{
-  position:relative;z-index:1;width:100%;height:100%;
-  border:4px solid #ffca28;background:transparent;
-  touch-action:manipulation
-}
+canvas{position:relative;z-index:1;width:100%;height:100%;
+       border:4px solid #ffca28;background:transparent;touch-action:manipulation}
 
-/* ——— Buttons ——— */
-#restart{
-  display:none;margin:16px 0;padding:12px 24px;font-size:1rem;
-  background:#ffca28;border:none;border-radius:6px;cursor:pointer
-}
+/* ——— Restart ——— */
+#restart{display:none;margin:16px 0;padding:12px 24px;font-size:1rem;
+         background:#ffca28;border:none;border-radius:6px;cursor:pointer}
 #restart:hover{opacity:.85}
 
-/* ——— Mobile Control Bar ——— */
+/* ——— Mobile controls inside wrapper ——— */
 #mobile-controls{
-  display:flex;justify-content:center;gap:24px;
-  margin:18px 0;padding-bottom:env(safe-area-inset-bottom)
+  position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  display:flex;gap:24px;z-index:2;pointer-events:none /* allow canvas drags */
 }
 #mobile-controls button{
-  width:56px;height:56px;font-size:1.8rem;
+  width:56px;height:56px;font-size:1.8rem;pointer-events:auto;
   background:rgba(255,202,40,.9);color:#fff;border:none;border-radius:50%;
-  backdrop-filter:blur(4px);touch-action:manipulation
+  backdrop-filter:blur(4px)
 }
-/* Hide controls on non-touch desktop */
+/* Hide control bar on desktop */
 @media (hover:hover) and (pointer:fine){#mobile-controls{display:none}}
 </style>
 </head>
@@ -67,24 +56,24 @@ canvas{
   <div id="hud">Score: 0 | Lives: 3</div>
 
   <div class="game-wrapper">
-    <img src="bg.png" class="bg" alt="kitchen">
+    <img src="bg.png" class="bg" alt="">
     <canvas id="game" width="360" height="480"></canvas>
+
+    <!-- Mobile controls (now inside wrapper) -->
+    <div id="mobile-controls">
+      <button id="left-btn">◀️</button>
+      <button id="vacuum-btn">💨</button>
+      <button id="right-btn">▶️</button>
+    </div>
   </div>
 
   <button id="restart">Restart</button>
 
-  <!-- Mobile control bar -->
-  <div id="mobile-controls">
-    <button id="left-btn">◀️</button>
-    <button id="vacuum-btn">💨</button>
-    <button id="right-btn">▶️</button>
-  </div>
-
 <script>
-/* ===== Prevent page scroll while playing ===== */
+/* ===== Stop whole-page scrolling ===== */
 document.body.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 
-/* ===== Canvas & Context ===== */
+/* ===== Canvas ===== */
 const canvas=document.getElementById('game'), ctx=canvas.getContext('2d');
 
 /* ===== DOM ===== */
@@ -94,8 +83,8 @@ const vacuumBtn=document.getElementById('vacuum-btn');
 
 /* ===== Assets ===== */
 const princessImg=new Image(); princessImg.src='oog.png';
-const cookieImg  =new Image(); cookieImg.src  ='cookie.png';
-const arnoldImg  =new Image(); arnoldImg.src  ='arnold.png';
+const cookieImg  =new Image(); cookieImg.src ='cookie.png';
+const arnoldImg  =new Image(); arnoldImg.src ='arnold.png';
 const vacuumSound=new Audio('vacuum.wav'); vacuumSound.loop=true;
 const loseSound  =new Audio('lose.m4a');
 
@@ -103,122 +92,94 @@ const loseSound  =new Audio('lose.m4a');
 const player={w:80,h:120,x:canvas.width/2-40,y:canvas.height-120,
               speed:5,movingLeft:false,movingRight:false,vacuumOn:false};
 
-/* ===== Arnold (robot helper) ===== */
-const arnold = {active:false,x:-120,y:canvas.height-160,w:120,h:80,speed:0,timer:0};
+/* ===== Arnold ===== */
+const arnold={active:false,x:-120,y:canvas.height-160,w:120,h:80,speed:0,timer:0};
 function summonArnold(){
-  if(!arnoldImg.complete) return;          // sprite not ready
-  arnold.active=true;
-  arnold.x=-arnold.w;
-  arnold.y=canvas.height-160;
-  arnold.speed=(canvas.width+arnold.w)/8000; // px per ms to cross in 8 s
-  arnold.timer=8000;
+  if(!arnoldImg.complete) return;
+  arnold.active=true; arnold.x=-arnold.w; arnold.y=canvas.height-160;
+  arnold.speed=(canvas.width+arnold.w)/8000; arnold.timer=8000;
 }
 
-/* ===== Game State ===== */
+/* ===== Game state ===== */
 let score=0,lives=3,gameOver=false;
 const cookies=[],particles=[];
 let lastCookie=0,lastTime=performance.now();
 
-/* ===== Particle Class ===== */
+/* ===== Particles ===== */
 class Particle{
-  constructor(x,y){
-    this.x=x;this.y=y;this.vx=(Math.random()*2-1)*0.6;this.vy=-2-Math.random()*1.5;
-    this.r=2+Math.random()*1.8;this.life=0;this.a=1;
-  }
+  constructor(x,y){this.x=x;this.y=y;this.vx=(Math.random()*2-1)*.6;this.vy=-2-Math.random()*1.5;
+    this.r=2+Math.random()*1.5;this.life=0;this.a=1;}
   update(dt){
     const dx=(player.x+player.w/2)-this.x, dy=(player.y+player.h/2)-this.y,
           dist=Math.hypot(dx,dy)+.1, pull=50/dist;
-    this.vx+=dx/dist*pull*dt*0.001; this.vy+=dy/dist*pull*dt*0.001;
-    this.x+=this.vx*dt*0.06; this.y+=this.vy*dt*0.06;
+    this.vx+=dx/dist*pull*dt*.001; this.vy+=dy/dist*pull*dt*.001;
+    this.x+=this.vx*dt*.06; this.y+=this.vy*dt*.06;
     this.life+=dt; this.a=Math.max(0,1-this.life/800);
   }
   draw(){
     ctx.save();ctx.globalAlpha=this.a;
     const g=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.r*2);
-    g.addColorStop(0,'rgba(255,255,255,.9)');
-    g.addColorStop(1,'rgba(173,216,230,0)');
-    ctx.fillStyle=g;ctx.beginPath();ctx.arc(this.x,this.y,this.r*2,0,Math.PI*2);ctx.fill();
-    ctx.restore();
+    g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(1,'rgba(173,216,230,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(this.x,this.y,this.r*2,0,Math.PI*2);ctx.fill();ctx.restore();
   }
 }
 
-/* ===== Controls — keyboard ===== */
-document.addEventListener('keydown',e=>{
-  if(e.code==='ArrowLeft')  player.movingLeft=true;
-  if(e.code==='ArrowRight') player.movingRight=true;
-  if(e.code==='Space'){
-    if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();}
-    player.vacuumOn=true;
-  }
-});
-document.addEventListener('keyup',e=>{
-  if(e.code==='ArrowLeft')  player.movingLeft=false;
-  if(e.code==='ArrowRight') player.movingRight=false;
-  if(e.code==='Space'){
-    player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;
-  }
-});
+/* ===== Spawn Cookie ===== */
+function spawnCookie(){const r=24; cookies.push({x:r+Math.random()*(canvas.width-2*r),y:-r,r,speed:2+Math.random()*2});}
 
-/* ===== Controls — touch ===== */
-leftBtn.ontouchstart =()=>player.movingLeft=true;
-leftBtn.ontouchend   =()=>player.movingLeft=false;
-rightBtn.ontouchstart=()=>player.movingRight=true;
-rightBtn.ontouchend  =()=>player.movingRight=false;
-vacuumBtn.ontouchstart=()=>{
-  if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();}
-  player.vacuumOn=true;
-};
-vacuumBtn.ontouchend=()=>{
-  player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;
-};
-
-/* ===== Voice Control (Web Speech) ===== */
-const SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
-if(SpeechRec){
-  const rec=new SpeechRec();
-  rec.lang='en-US'; rec.continuous=true; rec.interimResults=false;
-  rec.onresult=e=>{
-    const t=e.results[e.results.length-1][0].transcript.toLowerCase();
-    if(t.includes('arnold') && t.includes('not') && (t.includes('roobi')||t.includes('ruby'))){
-      summonArnold();
-    }
-  };
-  rec.onerror =()=>rec.start();
-  rec.onend   =()=>rec.start();
-  rec.start();
-}
-
-/* ===== Helpers ===== */
-function spawnCookie(){
-  const r=24;
-  cookies.push({x:r+Math.random()*(canvas.width-2*r),y:-r,r,speed:2+Math.random()*2});
-}
-function endGame(){
-  gameOver=true;loseSound.play();
-  hud.textContent=`Game Over! Final Score: ${score}`;
-  restartB.style.display='block';
-}
+/* ===== End & Restart ===== */
+function endGame(){gameOver=true;loseSound.play();
+  hud.textContent=`Game Over! Final Score: ${score}`;restartB.style.display='block';}
 restartB.onclick=()=>{
   cookies.length=0;particles.length=0;score=0;lives=3;gameOver=false;
   hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';
   lastTime=performance.now();requestAnimationFrame(loop);
 };
 
+/* ===== Controls — keyboard ===== */
+document.addEventListener('keydown',e=>{
+  if(['ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+  if(e.code==='ArrowLeft')player.movingLeft=true;
+  if(e.code==='ArrowRight')player.movingRight=true;
+  if(e.code==='Space'){
+    if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();}
+    player.vacuumOn=true;
+  }
+});
+document.addEventListener('keyup',e=>{
+  if(e.code==='ArrowLeft')player.movingLeft=false;
+  if(e.code==='ArrowRight')player.movingRight=false;
+  if(e.code==='Space'){player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;}
+});
+
+/* ===== Controls — touch ===== */
+leftBtn.ontouchstart =()=>player.movingLeft=true; leftBtn.ontouchend =()=>player.movingLeft=false;
+rightBtn.ontouchstart=()=>player.movingRight=true;rightBtn.ontouchend=()=>player.movingRight=false;
+vacuumBtn.ontouchstart=()=>{if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();} player.vacuumOn=true;};
+vacuumBtn.ontouchend  =()=>{player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;};
+
+/* ===== Voice Control (Web Speech) ===== */
+const SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(SpeechRec){
+  const rec=new SpeechRec();rec.lang='en-US';rec.continuous=true;
+  rec.onresult=e=>{
+    const t=e.results[e.results.length-1][0].transcript.toLowerCase();
+    if(t.includes('arnold')&&t.includes('not')&&(t.includes('roobi')||t.includes('ruby'))) summonArnold();
+  };
+  rec.onend=()=>rec.start(); rec.onerror=()=>rec.start(); rec.start();
+}
+
 /* ===== Game Loop ===== */
 function loop(ts){
-  if(gameOver) return;
+  if(gameOver)return;
   const dt=ts-lastTime; lastTime=ts;
 
-  /* Move player */
-  if(player.movingLeft) player.x=Math.max(0,player.x-player.speed);
+  /* Move */
+  if(player.movingLeft)player.x=Math.max(0,player.x-player.speed);
   if(player.movingRight)player.x=Math.min(canvas.width-player.w,player.x+player.speed);
 
-  /* Arnold movement */
-  if(arnold.active){
-    arnold.x+=arnold.speed*dt;
-    arnold.timer-=dt;
-    if(arnold.timer<=0) arnold.active=false;
-  }
+  /* Arnold */
+  if(arnold.active){arnold.x+=arnold.speed*dt; arnold.timer-=dt; if(arnold.timer<=0)arnold.active=false;}
 
   /* Spawn cookie */
   if(ts-lastCookie>1200){spawnCookie();lastCookie=ts;}
@@ -226,46 +187,35 @@ function loop(ts){
   /* Update cookies */
   for(let i=cookies.length-1;i>=0;i--){
     const c=cookies[i]; c.y+=c.speed;
-    /* Player vacuum */
     if(player.vacuumOn && c.y+c.r>player.y && c.y<player.y+player.h &&
        Math.abs(c.x-(player.x+player.w/2))<40){cookies.splice(i,1);score++;continue;}
-
-    /* Arnold vacuum */
     if(arnold.active && c.y+c.r>arnold.y && c.y<arnold.y+arnold.h &&
        c.x>arnold.x && c.x<arnold.x+arnold.w){cookies.splice(i,1);score++;continue;}
-
-    /* Missed */
     if(c.y-c.r>canvas.height){cookies.splice(i,1);if(--lives<=0)return endGame();}
   }
 
-  /* Particles (only from the princess) */
-  if(player.vacuumOn) for(let i=0;i<6;i++){
-    particles.push(new Particle(player.x+player.w/2+(Math.random()*40-20),
-                                player.y+player.h/2+20));
+  /* Particles */
+  if(player.vacuumOn)for(let i=0;i<6;i++){
+    particles.push(new Particle(player.x+player.w/2+(Math.random()*40-20),player.y+player.h/2+20));
   }
-  particles.forEach((p,i)=>{p.update(dt); if(p.a<=0)particles.splice(i,1);});
+  for(let i=particles.length-1;i>=0;i--){particles[i].update(dt);if(particles[i].a<=0)particles.splice(i,1);}
 
   /* Draw */
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  cookies.forEach(c=>{
-    if(cookieImg.complete) ctx.drawImage(cookieImg,c.x-c.r,c.y-c.r,c.r*2,c.r*2);
-  });
+  cookies.forEach(c=>{if(cookieImg.complete)ctx.drawImage(cookieImg,c.x-c.r,c.y-c.r,c.r*2,c.r*2);});
   particles.forEach(p=>p.draw());
-  if(princessImg.complete) ctx.drawImage(princessImg,player.x,player.y,player.w,player.h);
-  if(arnold.active && arnoldImg.complete)
-    ctx.drawImage(arnoldImg,arnold.x,arnold.y,arnold.w,arnold.h);
+  if(princessImg.complete)ctx.drawImage(princessImg,player.x,player.y,player.w,player.h);
+  if(arnold.active && arnoldImg.complete)ctx.drawImage(arnoldImg,arnold.x,arnold.y,arnold.w,arnold.h);
   if(player.vacuumOn){
-    ctx.fillStyle='rgba(255,255,255,0.1)';
-    ctx.fillRect(player.x+player.w/2-40,player.y-220,80,220);
+    ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect(player.x+player.w/2-40,player.y-220,80,220);
   }
-
   hud.textContent=`Score: ${score} | Lives: ${lives}`;
   requestAnimationFrame(loop);
 }
 
-/* ===== Start After Images Decode ===== */
+/* ===== Start ===== */
 Promise.all([princessImg.decode(),cookieImg.decode(),arnoldImg.decode()])
-        .finally(()=>requestAnimationFrame(loop));
+  .finally(()=>requestAnimationFrame(loop));
 </script>
 </body>
 </html>
