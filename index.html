@@ -2,64 +2,67 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<!-- lock zoom & respect safe areas -->
 <meta name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1" />
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Oog’s Majestic Cookie Vacuum</title>
 
 <style>
-  /* =========== GLOBAL =========== */
-  *{box-sizing:border-box;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif}
-  body{
-    display:flex;flex-direction:column;align-items:center;
-    color:#fff;user-select:none;padding-top:env(safe-area-inset-top);
-  }
+/* ——— Global resets ——— */
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif}
+html,body{
+  touch-action:none;                 /* no pinch/scroll */
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+  overscroll-behavior:none;
+}
+body{
+  display:flex;flex-direction:column;align-items:center;color:#fff;
+  padding-top:env(safe-area-inset-top);
+}
 
-  /* =========== HEADER & HUD =========== */
-  h1{
-    margin:20px 0 10px;font-size:2rem;text-align:center;
-    background:rgba(0,0,0,.5);padding:8px 16px;border-radius:8px
-  }
-  #hud{
-    font-size:1.2rem;margin:0 0 8px;background:rgba(0,0,0,.5);
-    padding:6px 12px;border-radius:6px
-  }
+/* ——— Header & HUD ——— */
+h1{
+  margin:20px 0 10px;font-size:2rem;text-align:center;
+  background:rgba(0,0,0,.55);padding:8px 16px;border-radius:8px
+}
+#hud{
+  font-size:1.2rem;margin:0 0 8px;background:rgba(0,0,0,.55);
+  padding:6px 12px;border-radius:6px
+}
 
-  /* =========== GAME AREA =========== */
-  .game-wrapper{
-    position:relative;width:100%;max-width:480px;aspect-ratio:3/4;
-    margin:0 auto;display:flex;justify-content:center;align-items:center;
-    box-shadow:0 4px 24px rgba(0,0,0,.18);overflow:hidden
-  }
-  .bg{
-    position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-    pointer-events:none
-  }
-  canvas{
-    position:relative;z-index:1;width:100%;height:100%;
-    border:4px solid #ffca28;background:transparent
-  }
+/* ——— Game area ——— */
+.game-wrapper{
+  position:relative;width:100%;max-width:480px;aspect-ratio:3/4;
+  box-shadow:0 4px 24px rgba(0,0,0,.18);overflow:hidden
+}
+.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+canvas{
+  position:relative;z-index:1;width:100%;height:100%;
+  border:4px solid #ffca28;background:transparent;touch-action:manipulation
+}
 
-  /* =========== RESTART BUTTON =========== */
-  #restart{
-    display:none;margin:16px 0;padding:12px 24px;font-size:1rem;
-    background:#ffca28;border:none;border-radius:6px;cursor:pointer
-  }
-  #restart:hover{opacity:.85}
+/* ——— Buttons ——— */
+#restart{
+  display:none;margin:16px 0;padding:12px 24px;font-size:1rem;
+  background:#ffca28;border:none;border-radius:6px;cursor:pointer
+}
+#restart:hover{opacity:.85}
 
-  /* =========== MOBILE CONTROLS =========== */
-  #mobile-controls{
-    display:flex;justify-content:center;gap:24px;
-    margin:18px 0 0;padding-bottom:env(safe-area-inset-bottom)
-  }
-  #mobile-controls button{
-    width:56px;height:56px;font-size:1.8rem;
-    background:rgba(255,202,40,.9);color:#fff;border:none;border-radius:50%;
-    backdrop-filter:blur(4px)
-  }
-  /* Hide control bar on desktop / non-touch */
-  @media (hover:hover) and (pointer:fine){
-    #mobile-controls{display:none}
-  }
+/* ——— Mobile control bar ——— */
+#mobile-controls{
+  display:flex;justify-content:center;gap:24px;
+  margin:18px 0;padding-bottom:env(safe-area-inset-bottom)
+}
+#mobile-controls button{
+  width:56px;height:56px;font-size:1.8rem;
+  background:rgba(255,202,40,.9);color:#fff;border:none;border-radius:50%;
+  backdrop-filter:blur(4px);touch-action:manipulation
+}
+/* Hide controls on non-touch desktop */
+@media (hover:hover) and (pointer:fine){
+  #mobile-controls{display:none}
+}
 </style>
 </head>
 
@@ -68,13 +71,13 @@
   <div id="hud">Score: 0 | Lives: 3</div>
 
   <div class="game-wrapper">
-    <img src="bg.png" class="bg" alt="kitchen background">
+    <img src="bg.png" class="bg" alt="kitchen">
     <canvas id="game" width="480" height="640"></canvas>
   </div>
 
   <button id="restart">Restart</button>
 
-  <!-- Mobile control bar (shown only on touch devices) -->
+  <!-- Touch control bar -->
   <div id="mobile-controls">
     <button id="left-btn">◀️</button>
     <button id="vacuum-btn">💨</button>
@@ -82,9 +85,20 @@
   </div>
 
 <script>
-/* ===== CANVAS & CTX ===== */
-const canvas = document.getElementById('game');
-const ctx    = canvas.getContext('2d');
+/* ===== Anti-scroll (no page move while playing) ===== */
+document.body.addEventListener('touchmove', e=>e.preventDefault(), {passive:false});
+
+/* ===== Responsive Hi-DPI canvas ===== */
+const canvas  = document.getElementById('game');
+const ctx     = canvas.getContext('2d');
+function resizeCanvas(){
+  const rect=canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = rect.width  * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr,dpr);
+}
+resizeCanvas(); window.addEventListener('resize',resizeCanvas);
 
 /* ===== DOM ===== */
 const hud       = document.getElementById('hud');
@@ -93,124 +107,152 @@ const leftBtn   = document.getElementById('left-btn');
 const rightBtn  = document.getElementById('right-btn');
 const vacuumBtn = document.getElementById('vacuum-btn');
 
-/* ===== ASSETS ===== */
-const princessImg = new Image(); princessImg.src = 'oog.png';
-const cookieImg   = new Image(); cookieImg.src   = 'cookie.png';
-const vacuumSound = new Audio('vacuum.wav'); vacuumSound.loop = true;
+/* ===== Assets ===== */
+const princessImg = new Image(); princessImg.src='oog.png';
+const cookieImg   = new Image(); cookieImg.src='cookie.png';
+const vacuumSound = new Audio('vacuum.wav'); vacuumSound.loop=true;
 const loseSound   = new Audio('lose.m4a');
 
-/* ===== PLAYER ===== */
-const player = {
-  w:80,h:120,x:canvas.width/2-40,y:canvas.height-120,
-  speed:5,movingLeft:false,movingRight:false,vacuumOn:false
-};
+/* ===== Player ===== */
+const player = {w:80,h:120,x:canvas.width/2-40,y:canvas.height-120,
+                speed:5,movingLeft:false,movingRight:false,vacuumOn:false};
 
-/* ===== GAME STATE ===== */
+/* ===== Game state ===== */
 let score=0,lives=3,gameOver=false;
-const cookies=[]; let lastCookie=0;
-let lastTime=performance.now();
+const cookies=[],particles=[];
+let lastCookie=0,lastTime=performance.now();
 
-/* ===== KEYBOARD CONTROLS ===== */
+/* ===== Particle class ===== */
+class Particle{
+  constructor(x,y){
+    this.x=x;this.y=y;
+    this.vx=(Math.random()*2-1)*0.6;
+    this.vy=-2-Math.random()*1.5;
+    this.r =2+Math.random()*2;
+    this.a =1; this.life=0;
+  }
+  update(dt){
+    const cx=player.x+player.w/2, cy=player.y+player.h/2;
+    const dx=cx-this.x, dy=cy-this.y, dist=Math.hypot(dx,dy)+.1;
+    const pull=50/dist;
+    this.vx+=dx/dist*pull*dt*0.001;
+    this.vy+=dy/dist*pull*dt*0.001;
+    this.x+=this.vx*dt*0.06;
+    this.y+=this.vy*dt*0.06;
+    this.life+=dt; this.a=Math.max(0,1-this.life/800);
+  }
+  draw(){
+    ctx.save();ctx.globalAlpha=this.a;
+    const g=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.r*2);
+    g.addColorStop(0,'rgba(255,255,255,.9)');
+    g.addColorStop(1,'rgba(173,216,230,0)');
+    ctx.fillStyle=g;ctx.beginPath();
+    ctx.arc(this.x,this.y,this.r*2,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+}
+
+/* ===== Controls (keyboard) ===== */
 document.addEventListener('keydown',e=>{
-  if(e.code==='ArrowLeft')  player.movingLeft  = true;
-  if(e.code==='ArrowRight') player.movingRight = true;
+  if(e.code==='ArrowLeft')  player.movingLeft=true;
+  if(e.code==='ArrowRight') player.movingRight=true;
   if(e.code==='Space'){
     if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();}
     player.vacuumOn=true;
   }
 });
 document.addEventListener('keyup',e=>{
-  if(e.code==='ArrowLeft')  player.movingLeft  = false;
-  if(e.code==='ArrowRight') player.movingRight = false;
+  if(e.code==='ArrowLeft')  player.movingLeft=false;
+  if(e.code==='ArrowRight') player.movingRight=false;
   if(e.code==='Space'){
-    player.vacuumOn=false;
-    vacuumSound.pause();vacuumSound.currentTime=0;
+    player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;
   }
 });
 
-/* ===== TOUCH CONTROLS ===== */
-leftBtn.addEventListener('touchstart',()=>player.movingLeft=true);
-leftBtn.addEventListener('touchend',  ()=>player.movingLeft=false);
+/* ===== Touch controls ===== */
+leftBtn.ontouchstart=()=>player.movingLeft=true;
+leftBtn.ontouchend  =()=>player.movingLeft=false;
 
-rightBtn.addEventListener('touchstart',()=>player.movingRight=true);
-rightBtn.addEventListener('touchend',  ()=>player.movingRight=false);
+rightBtn.ontouchstart=()=>player.movingRight=true;
+rightBtn.ontouchend  =()=>player.movingRight=false;
 
-vacuumBtn.addEventListener('touchstart',()=>{
+vacuumBtn.ontouchstart=()=>{
   if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();}
   player.vacuumOn=true;
-});
-vacuumBtn.addEventListener('touchend',()=>{
+};
+vacuumBtn.ontouchend=()=>{
   player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;
-});
-
-/* ===== COOKIE SPAWN ===== */
-function spawnCookie(){
-  const r=24;
-  cookies.push({x:r+Math.random()*(canvas.width-2*r),
-                y:-r,r,speed:2+Math.random()*2});
-}
-
-/* ===== RESTART ===== */
-restartB.onclick=()=>{
-  cookies.length=0;score=0;lives=3;gameOver=false;
-  hud.textContent='Score: 0 | Lives: 3';
-  restartB.style.display='none';lastTime=performance.now();
-  requestAnimationFrame(loop);
 };
 
-/* ===== GAME LOOP ===== */
-function loop(ts){
-  if(gameOver) return;
-  const dt=ts-lastTime;lastTime=ts;
-
-  /* movement */
-  if(player.movingLeft)player.x=Math.max(0,player.x-player.speed);
-  if(player.movingRight)player.x=Math.min(canvas.width-player.w,player.x+player.speed);
-
-  /* spawn cookie */
-  if(ts-lastCookie>1200){spawnCookie();lastCookie=ts;}
-
-  /* update cookies */
-  for(let i=cookies.length-1;i>=0;i--){
-    const c=cookies[i];c.y+=c.speed;
-    /* vacuum grab */
-    if(player.vacuumOn && c.y+c.r>player.y && c.y<player.y+player.h){
-      if(Math.abs(c.x-(player.x+player.w/2))<40){cookies.splice(i,1);score++;continue;}
-    }
-    /* missed */
-    if(c.y-c.r>canvas.height){cookies.splice(i,1);if(--lives<=0)return endGame();}
-  }
-
-  /* render */
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  cookies.forEach(c=>{
-    if(cookieImg.complete)
-      ctx.drawImage(cookieImg,c.x-c.r,c.y-c.r,c.r*2,c.r*2);
-    else{
-      ctx.fillStyle='#d8a45f';ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();
-    }
-  });
-  if(princessImg.complete)
-    ctx.drawImage(princessImg,player.x,player.y,player.w,player.h);
-
-  if(player.vacuumOn){
-    ctx.fillStyle='rgba(255,255,255,0.12)';
-    ctx.fillRect(player.x+player.w/2-40,player.y-220,80,220);
-  }
-
-  hud.textContent=`Score: ${score} | Lives: ${lives}`;
-  requestAnimationFrame(loop);
+/* ===== Helpers ===== */
+function spawnCookie(){
+  const r=24;
+  cookies.push({x:r+Math.random()*(canvas.width/ window.devicePixelRatio-2*r),
+                y:-r,r,speed:2+Math.random()*2});
 }
-
 function endGame(){
   gameOver=true;loseSound.play();
   hud.textContent=`Game Over! Final Score: ${score}`;
   restartB.style.display='block';
 }
+restartB.onclick=()=>{
+  cookies.length=0;particles.length=0;score=0;lives=3;gameOver=false;
+  hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';
+  lastTime=performance.now();requestAnimationFrame(loop);
+};
 
-/* ===== START ===== */
+/* ===== Game loop ===== */
+function loop(ts){
+  if(gameOver) return;
+  const dt=ts-lastTime;lastTime=ts;
+
+  /* Move player */
+  if(player.movingLeft) player.x=Math.max(0,player.x-player.speed);
+  if(player.movingRight)player.x=Math.min(canvas.width/window.devicePixelRatio-player.w,player.x+player.speed);
+
+  /* Spawn cookie */
+  if(ts-lastCookie>1200){spawnCookie();lastCookie=ts;}
+
+  /* Update cookies */
+  for(let i=cookies.length-1;i>=0;i--){
+    const c=cookies[i];c.y+=c.speed;
+    if(player.vacuumOn && c.y+c.r>player.y && c.y<player.y+player.h &&
+       Math.abs(c.x-(player.x+player.w/2))<40){cookies.splice(i,1);score++;continue;}
+    if(c.y-c.r>canvas.height/window.devicePixelRatio){cookies.splice(i,1);if(--lives<=0)return endGame();}
+  }
+
+  /* Spawn particles */
+  if(player.vacuumOn) for(let i=0;i<6;i++){
+    particles.push(new Particle(player.x+player.w/2+(Math.random()*40-20),
+                                player.y+player.h/2+20));
+  }
+  /* Update particles */
+  for(let i=particles.length-1;i>=0;i--){
+    particles[i].update(dt);
+    if(particles[i].a<=0)particles.splice(i,1);
+  }
+
+  /* Draw */
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  cookies.forEach(c=>{
+    if(cookieImg.complete)ctx.drawImage(cookieImg,c.x*cpr(),c.y*cpr(),c.r*2*cpr(),c.r*2*cpr());
+    else{ctx.fillStyle='#d8a45f';ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.fill();}
+  });
+  particles.forEach(p=>p.draw());
+  if(princessImg.complete)ctx.drawImage(princessImg,player.x*cpr(),player.y*cpr(),player.w*cpr(),player.h*cpr());
+  if(player.vacuumOn){
+    ctx.fillStyle='rgba(255,255,255,0.1)';
+    ctx.fillRect((player.x+player.w/2-40)*cpr(),(player.y-220)*cpr(),80*cpr(),220*cpr());
+  }
+
+  hud.textContent=`Score: ${score} | Lives: ${lives}`;
+  requestAnimationFrame(loop);
+}
+/* Pixel ratio helper */
+function cpr(){return window.devicePixelRatio||1;}
+
+/* ===== Start after images decode ===== */
 Promise.all([princessImg.decode(),cookieImg.decode().catch(()=>{})])
-       .finally(()=>requestAnimationFrame(loop));
+  .finally(()=>requestAnimationFrame(loop));
 </script>
 </body>
 </html>
