@@ -36,17 +36,16 @@ canvas{position:relative;z-index:1;width:100%;height:100%;
          background:#ffca28;border:none;border-radius:6px;cursor:pointer}
 #restart:hover{opacity:.85}
 
-/* ——— Mobile controls inside wrapper ——— */
+/* ——— Mobile controls ——— */
 #mobile-controls{
   position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
-  display:flex;gap:24px;z-index:2;pointer-events:none /* allow canvas drags */
+  display:flex;gap:24px;z-index:2;pointer-events:none
 }
 #mobile-controls button{
   width:56px;height:56px;font-size:1.8rem;pointer-events:auto;
   background:rgba(255,202,40,.9);color:#fff;border:none;border-radius:50%;
   backdrop-filter:blur(4px)
 }
-/* Hide control bar on desktop */
 @media (hover:hover) and (pointer:fine){#mobile-controls{display:none}}
 </style>
 </head>
@@ -59,7 +58,7 @@ canvas{position:relative;z-index:1;width:100%;height:100%;
     <img src="bg.png" class="bg" alt="">
     <canvas id="game" width="360" height="480"></canvas>
 
-    <!-- Mobile controls (now inside wrapper) -->
+    <!-- Mobile controls -->
     <div id="mobile-controls">
       <button id="left-btn">◀️</button>
       <button id="vacuum-btn">💨</button>
@@ -70,10 +69,10 @@ canvas{position:relative;z-index:1;width:100%;height:100%;
   <button id="restart">Restart</button>
 
 <script>
-/* ===== Stop whole-page scrolling ===== */
+/* ===== Prevent page scroll on touch ===== */
 document.body.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 
-/* ===== Canvas ===== */
+/* ===== Canvas & context ===== */
 const canvas=document.getElementById('game'), ctx=canvas.getContext('2d');
 
 /* ===== DOM ===== */
@@ -92,12 +91,15 @@ const loseSound  =new Audio('lose.m4a');
 const player={w:80,h:120,x:canvas.width/2-40,y:canvas.height-120,
               speed:5,movingLeft:false,movingRight:false,vacuumOn:false};
 
-/* ===== Arnold ===== */
+/* ===== Arnold helper ===== */
 const arnold={active:false,x:-120,y:canvas.height-160,w:120,h:80,speed:0,timer:0};
 function summonArnold(){
   if(!arnoldImg.complete) return;
-  arnold.active=true; arnold.x=-arnold.w; arnold.y=canvas.height-160;
-  arnold.speed=(canvas.width+arnold.w)/8000; arnold.timer=8000;
+  arnold.active=true;
+  arnold.x=-arnold.w;
+  arnold.y=canvas.height-160;
+  arnold.speed=(canvas.width+arnold.w)/8000; // cross in 8 s
+  arnold.timer=8000;
 }
 
 /* ===== Game state ===== */
@@ -124,18 +126,6 @@ class Particle{
   }
 }
 
-/* ===== Spawn Cookie ===== */
-function spawnCookie(){const r=24; cookies.push({x:r+Math.random()*(canvas.width-2*r),y:-r,r,speed:2+Math.random()*2});}
-
-/* ===== End & Restart ===== */
-function endGame(){gameOver=true;loseSound.play();
-  hud.textContent=`Game Over! Final Score: ${score}`;restartB.style.display='block';}
-restartB.onclick=()=>{
-  cookies.length=0;particles.length=0;score=0;lives=3;gameOver=false;
-  hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';
-  lastTime=performance.now();requestAnimationFrame(loop);
-};
-
 /* ===== Controls — keyboard ===== */
 document.addEventListener('keydown',e=>{
   if(['ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
@@ -149,7 +139,9 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('keyup',e=>{
   if(e.code==='ArrowLeft')player.movingLeft=false;
   if(e.code==='ArrowRight')player.movingRight=false;
-  if(e.code==='Space'){player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;}
+  if(e.code==='Space'){
+    player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;
+  }
 });
 
 /* ===== Controls — touch ===== */
@@ -158,33 +150,38 @@ rightBtn.ontouchstart=()=>player.movingRight=true;rightBtn.ontouchend=()=>player
 vacuumBtn.ontouchstart=()=>{if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();} player.vacuumOn=true;};
 vacuumBtn.ontouchend  =()=>{player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;};
 
-/* ===== Voice Control (Web Speech) ===== */
+/* ===== Voice control ===== */
 const SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(SpeechRec){
-  const rec=new SpeechRec();rec.lang='en-US';rec.continuous=true;
+  const rec=new SpeechRec(); rec.lang='en-US'; rec.continuous=true;
   rec.onresult=e=>{
-    const t=e.results[e.results.length-1][0].transcript.toLowerCase();
-    if(t.includes('arnold')&&t.includes('not')&&(t.includes('roobi')||t.includes('ruby'))) summonArnold();
+    const text=e.results[e.results.length-1][0].transcript.toLowerCase();
+    /* NEW condition: any phrase containing “arnold” triggers the helper */
+    if(text.includes('arnold')) summonArnold();
   };
   rec.onend=()=>rec.start(); rec.onerror=()=>rec.start(); rec.start();
 }
 
-/* ===== Game Loop ===== */
+/* ===== Helper functions ===== */
+function spawnCookie(){const r=24; cookies.push({x:r+Math.random()*(canvas.width-2*r),y:-r,r,speed:2+Math.random()*2});}
+function endGame(){gameOver=true;loseSound.play();
+  hud.textContent=`Game Over! Final Score: ${score}`;restartB.style.display='block';}
+restartB.onclick=()=>{cookies.length=0;particles.length=0;score=0;lives=3;gameOver=false;
+  hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';
+  lastTime=performance.now();requestAnimationFrame(loop);};
+
+/* ===== Main loop ===== */
 function loop(ts){
   if(gameOver)return;
   const dt=ts-lastTime; lastTime=ts;
 
-  /* Move */
-  if(player.movingLeft)player.x=Math.max(0,player.x-player.speed);
+  if(player.movingLeft) player.x=Math.max(0,player.x-player.speed);
   if(player.movingRight)player.x=Math.min(canvas.width-player.w,player.x+player.speed);
 
-  /* Arnold */
   if(arnold.active){arnold.x+=arnold.speed*dt; arnold.timer-=dt; if(arnold.timer<=0)arnold.active=false;}
 
-  /* Spawn cookie */
-  if(ts-lastCookie>1200){spawnCookie();lastCookie=ts;}
+  if(ts-lastCookie>1200){spawnCookie(); lastCookie=ts;}
 
-  /* Update cookies */
   for(let i=cookies.length-1;i>=0;i--){
     const c=cookies[i]; c.y+=c.speed;
     if(player.vacuumOn && c.y+c.r>player.y && c.y<player.y+player.h &&
@@ -194,21 +191,17 @@ function loop(ts){
     if(c.y-c.r>canvas.height){cookies.splice(i,1);if(--lives<=0)return endGame();}
   }
 
-  /* Particles */
-  if(player.vacuumOn)for(let i=0;i<6;i++){
+  if(player.vacuumOn)for(let i=0;i<6;i++)
     particles.push(new Particle(player.x+player.w/2+(Math.random()*40-20),player.y+player.h/2+20));
-  }
-  for(let i=particles.length-1;i>=0;i--){particles[i].update(dt);if(particles[i].a<=0)particles.splice(i,1);}
+  particles.forEach((p,i)=>{p.update(dt); if(p.a<=0)particles.splice(i,1);});
 
-  /* Draw */
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  cookies.forEach(c=>{if(cookieImg.complete)ctx.drawImage(cookieImg,c.x-c.r,c.y-c.r,c.r*2,c.r*2);});
+  cookies.forEach(c=>cookieImg.complete&&ctx.drawImage(cookieImg,c.x-c.r,c.y-c.r,c.r*2,c.r*2));
   particles.forEach(p=>p.draw());
-  if(princessImg.complete)ctx.drawImage(princessImg,player.x,player.y,player.w,player.h);
-  if(arnold.active && arnoldImg.complete)ctx.drawImage(arnoldImg,arnold.x,arnold.y,arnold.w,arnold.h);
-  if(player.vacuumOn){
-    ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect(player.x+player.w/2-40,player.y-220,80,220);
-  }
+  princessImg.complete&&ctx.drawImage(princessImg,player.x,player.y,player.w,player.h);
+  arnold.active&&arnoldImg.complete&&ctx.drawImage(arnoldImg,arnold.x,arnold.y,arnold.w,arnold.h);
+  if(player.vacuumOn){ctx.fillStyle='rgba(255,255,255,.1)';
+    ctx.fillRect(player.x+player.w/2-40,player.y-220,80,220);}
   hud.textContent=`Score: ${score} | Lives: ${lives}`;
   requestAnimationFrame(loop);
 }
