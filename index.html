@@ -159,7 +159,7 @@ function loop(ts){
     if(playerGrab || arnoldGrab){
       cookies.splice(i,1); score++;
       /* New feature: summon Arnold on each multiple of 10 */
-      if(score%10===0) summonArnold();
+      if(score%5===0) summonArnold();
       continue;
     }
     /* Missed cookie */
