@@ -2,147 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1, maximum-scale=1" />
+  <!-- Prevent mobile double-tap zoom & respect safe areas -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Oog’s Majestic Cookie Vacuum</title>
+
   <style>
-    /* ===== General Styles ===== */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: Arial, Helvetica, sans-serif;
-    }
+    /* ——— General layout ——— */
+    * { box-sizing:border-box; margin:0; padding:0;
+        font-family:Arial,Helvetica,sans-serif; }
     body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      color: #fff;
-      user-select: none;
-      padding-top: env(safe-area-inset-top);
-    }
-    .game-wrapper {
-      position: relative;
-      width: 100%;
-      max-width: 480px;
-      margin: 0 auto;
-      aspect-ratio: 3/4;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
-      overflow: hidden;
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    .bg {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      z-index: 0;
-      pointer-events: none;
-      user-select: none;
-    }
-    .game-wrapper canvas {
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      height: 100%;
-      display: block;
-      max-width: 100%;
-      max-height: 100%;
-    }
-    h1 {
-      margin: 20px 0 10px;
-      font-size: 2rem;
-      text-align: center;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 8px 16px;
-      border-radius: 8px;
-    }
-    canvas {
-      border: 4px solid #ffca28;
-      background: transparent;
-    }
-    #hud {
-      margin-top: 10px;
-      font-size: 1.2rem;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 6px 12px;
-      border-radius: 6px;
-      margin-bottom: 8px;
-    }
-    #restart {
-      display: none;
-      margin-top: 20px;
-      padding: 12px 24px;
-      font-size: 1rem;
-      background-color: #ffca28;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      z-index: 1000;
-    }
-    #restart:hover {
-      opacity: 0.85;
-    }
-    button {
-      margin-top: 15px;
-      padding: 8px 18px;
-      font-size: 1rem;
-      border: none;
-      border-radius: 6px;
-      background: #ffca28;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    button:hover {
-      opacity: 0.8;
-    }
-    #touch-vacuum {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      padding: 12px 20px;
-      font-size: 1.2rem;
-      background: #ffca28;
-      border: none;
-      border-radius: 10px;
-      z-index: 999;
-    }
-    @media (hover: none) and (pointer: coarse) {
-      #touch-vacuum {
-        display: block;
-      }
-      #left-btn, #right-btn {
-        display: block;
-      }
+      display:flex; flex-direction:column; align-items:center;
+      color:#fff; user-select:none;
+      padding-top:env(safe-area-inset-top);
     }
 
-    #left-btn, #right-btn {
-      position: fixed;
-      bottom: 20px;
-      width: 50px;
-      height: 50px;
-      background-color: rgba(255, 202, 40, 0.9);
-      border: none;
-      border-radius: 50%;
-      font-size: 2rem;
-      color: #fff;
-      z-index: 999;
+    /* ——— Title + HUD ——— */
+    h1{
+      margin:20px 0 10px; font-size:2rem; text-align:center;
+      background:rgba(0,0,0,.5); padding:8px 16px; border-radius:8px;
     }
-    #left-btn {
-      left: 20px;
+    #hud{
+      margin:0 0 8px; font-size:1.2rem;
+      background:rgba(0,0,0,.5); padding:6px 12px; border-radius:6px;
     }
-    #right-btn {
-      left: 80px;
+
+    /* ——— Game wrapper & background ——— */
+    .game-wrapper{
+      position:relative; width:100%; max-width:480px; aspect-ratio:3/4;
+      margin:0 auto; display:flex; justify-content:center; align-items:center;
+      box-shadow:0 4px 24px rgba(0,0,0,.18); overflow:hidden;
+      padding-bottom:env(safe-area-inset-bottom);
     }
-    @media (min-width: 481px) {
-      #left-btn, #right-btn, #touch-vacuum {
-        display: none;
-      }
+    .bg{
+      position:absolute; inset:0; width:100%; height:100%;
+      object-fit:cover; z-index:0; pointer-events:none;
+    }
+    canvas{
+      position:relative; z-index:1; width:100%; height:100%;
+      border:4px solid #ffca28; background:transparent;
+    }
+
+    /* ——— Buttons ——— */
+    #restart{
+      display:none; margin:20px 0 0; padding:12px 24px;
+      font-size:1rem; background:#ffca28; border:none; border-radius:6px;
+      cursor:pointer; z-index:1000;
+    }
+    #restart:hover{ opacity:.85; }
+
+    /* ——— Mobile control bar ——— */
+    #mobile-controls{
+      position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+      display:flex; gap:18px; z-index:1000;
+    }
+    #mobile-controls button{
+      width:56px; height:56px; font-size:1.8rem;
+      background:rgba(255,202,40,.9); color:#fff; border:none;
+      border-radius:50%; backdrop-filter:blur(4px);
+    }
+    /* Hide control bar on desktop / non-touch devices */
+    @media (hover:hover) and (pointer:fine){
+      #mobile-controls{ display:none; }
     }
   </style>
 </head>
@@ -150,326 +71,165 @@
 <body>
   <h1>👑 Oog’s Majestic Cookie Vacuum 👑</h1>
   <div id="hud">Score: 0 | Lives: 3</div>
+
   <div class="game-wrapper">
-    <img src="bg.png" class="bg" />
+    <img src="bg.png" class="bg" alt="Background" />
     <canvas id="game" width="480" height="640"></canvas>
   </div>
+
   <button id="restart">Restart</button>
-  <button id="touch-vacuum" style="display:none">Vacuum</button>
-  <button id="left-btn" style="display:none">◀️</button>
-  <button id="right-btn" style="display:none">▶️</button>
+
+  <!-- Mobile controls (touch devices only) -->
+  <div id="mobile-controls">
+    <button id="left-btn">◀️</button>
+    <button id="vacuum-btn">💨</button>
+    <button id="right-btn">▶️</button>
+  </div>
 
   <script>
-    /* ---------- General Setup ---------- */
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
-    const hud = document.getElementById('hud');
-    const restartB = document.getElementById('restart');
-    const touchVacuum = document.getElementById('touch-vacuum');
-    const leftBtn = document.getElementById('left-btn');
-    const rightBtn = document.getElementById('right-btn');
+  /* ---------- Canvas & context ---------- */
+  const canvas = document.getElementById('game');
+  const ctx    = canvas.getContext('2d');
+  const hud    = document.getElementById('hud');
+  const restartB = document.getElementById('restart');
 
-    const GAME_W = canvas.width;
-    const GAME_H = canvas.height;
+  /* ---------- Assets ---------- */
+  const princessImg = new Image(); princessImg.src = 'oog.png';
+  const cookieImg   = new Image(); cookieImg.src   = 'cookie.png';
 
-    /* ---------- Image Assets ---------- */
-    const princessImg = new Image();
-    princessImg.src = 'oog.png'; // make sure oog.png is in the same folder
+  const vacuumSound = new Audio('vacuum.wav'); vacuumSound.loop = true;
+  const loseSound   = new Audio('lose.m4a');
 
-    const cookieImg = new Image();
-    cookieImg.src = 'cookie.png'; // make sure cookie.png is in the same folder
+  /* ---------- Player ---------- */
+  const player = { w:80, h:120,
+                   x:canvas.width/2-40, y:canvas.height-120,
+                   speed:5, movingLeft:false, movingRight:false,
+                   vacuumOn:false };
 
-    // Vacuum sound effect
-    const vacuumSound = new Audio('vacuum.wav');
-    vacuumSound.loop = true;
-    // Lose sound effect
-    const loseSound = new Audio('lose.m4a');
+  /* ---------- Game state ---------- */
+  const cookies=[];      // falling cookies
+  const particles=[];    // vacuum particles
+  let lastCookie=0;
+  let score=0, lives=3, gameOver=false;
+  let lastTime=performance.now();
 
-    let assetsLoaded = 0;
-    function onAssetLoad() {
-      // When both images have either loaded or errored, start the game loop
-      assetsLoaded++;
-      if (assetsLoaded === 2) {
-        requestAnimationFrame(loop);
-      }
+  /* ---------- Controls (keyboard) ---------- */
+  document.addEventListener('keydown',e=>{
+    if(e.code==='ArrowLeft')  player.movingLeft  = true;
+    if(e.code==='ArrowRight') player.movingRight = true;
+    if(e.code==='Space'){
+      if(!player.vacuumOn){ vacuumSound.currentTime=0; vacuumSound.play(); }
+      player.vacuumOn=true;
     }
-    princessImg.onload = onAssetLoad;
-    cookieImg.onload = onAssetLoad;
-    // If one of the images fails to load, still start the loop
-    princessImg.onerror = onAssetLoad;
-    cookieImg.onerror = onAssetLoad;
-
-    /* ---------- Player Object ---------- */
-    const player = {
-      w: 80,
-      h: 120,
-      x: GAME_W / 2 - 40,
-      y: GAME_H - 120,
-      speed: 5,
-      movingLeft: false,
-      movingRight: false,
-      vacuumOn: false
-    };
-
-    /* ---------- Cookies Array ---------- */
-    const cookies = [];
-    const cookieSpawnInterval = 1200; // spawn new cookie every 1200ms
-    let lastCookieTime = 0;
-
-    /* ---------- Particle System for Vacuum ---------- */
-    const particles = [];
-    const maxParticles = 200;       // סה"כ חלקיקים מוקצים
-    const particleSpawnRate = 5;    // מספר חלקיקים נוצצים שייצרו בכל frame של Space
-    const particleLifetime = 800;   // חיים מ״ש בחלקיק (ms)
-
-    class Particle {
-      constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        // מהירות ראשונית באקראי מעט לצדדים כלפי מעלה
-        this.vx = (Math.random() * 2 - 1) * 0.5; 
-        this.vy = - (2 + Math.random() * 1);
-        // גודל וניגודיות
-        this.r = 2 + Math.random() * 2;
-        this.alpha = 1; // שקיפות התחלתית
-        // זמן יצירה
-        this.createdAt = performance.now();
-      }
-      update(dt) {
-        // שואב מושך את החלקיק מעלה: 
-        const centerX = player.x + player.w / 2;
-        const centerY = player.y + player.h / 2;
-        // כוח משיכה לכיוון point (magnitude עולה ככל שמתקרב)
-        const dx = centerX - this.x;
-        const dy = centerY - this.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) + 0.1;
-        const pullStrength = 50 / dist; // ערך סביר
-        // עדכון מהירות לפי כוח המשיכה
-        this.vx += (dx / dist) * pullStrength * dt * 0.001;
-        this.vy += (dy / dist) * pullStrength * dt * 0.001;
-        // הזזת חלקיק
-        this.x += this.vx * dt * 0.06;
-        this.y += this.vy * dt * 0.06;
-        // הפחתת שקיפות עם הזמן
-        const lifeElapsed = performance.now() - this.createdAt;
-        this.alpha = Math.max(0, 1 - lifeElapsed / particleLifetime);
-      }
-      draw(ctx) {
-        ctx.save();
-        ctx.globalAlpha = this.alpha;
-        const gradient = ctx.createRadialGradient(
-          this.x, this.y, 0,
-          this.x, this.y, this.r * 2
-        );
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-        gradient.addColorStop(1, 'rgba(173, 216, 230, 0)');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r * 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
+  });
+  document.addEventListener('keyup',e=>{
+    if(e.code==='ArrowLeft')  player.movingLeft  = false;
+    if(e.code==='ArrowRight') player.movingRight = false;
+    if(e.code==='Space'){
+      player.vacuumOn=false;
+      vacuumSound.pause(); vacuumSound.currentTime=0;
     }
+  });
 
-    /* ---------- Game State ---------- */
-    let score = 0;
-    let lives = 3;
-    let gameOver = false;
-    let lastTime = performance.now();
+  /* ---------- Mobile buttons ---------- */
+  const leftBtn   = document.getElementById('left-btn');
+  const rightBtn  = document.getElementById('right-btn');
+  const vacuumBtn = document.getElementById('vacuum-btn');
 
-    /* ---------- Keyboard Input ---------- */
-    document.addEventListener('keydown', e => {
-      if (e.code === 'ArrowLeft') player.movingLeft = true;
-      if (e.code === 'ArrowRight') player.movingRight = true;
-      if (e.code === 'Space') {
-        if (!player.vacuumOn) {
-          vacuumSound.currentTime = 0;
-          vacuumSound.play();
+  leftBtn.addEventListener('touchstart', () => player.movingLeft=true );
+  leftBtn.addEventListener('touchend',   () => player.movingLeft=false );
+
+  rightBtn.addEventListener('touchstart', () => player.movingRight=true );
+  rightBtn.addEventListener('touchend',   () => player.movingRight=false );
+
+  vacuumBtn.addEventListener('touchstart', () => {
+    if(!player.vacuumOn){ vacuumSound.currentTime=0; vacuumSound.play(); }
+    player.vacuumOn=true;
+  });
+  vacuumBtn.addEventListener('touchend', () => {
+    player.vacuumOn=false;
+    vacuumSound.pause(); vacuumSound.currentTime=0;
+  });
+
+  /* ---------- Helper functions ---------- */
+  function spawnCookie(){
+    const r=24;
+    cookies.push({
+      x:r+Math.random()*(canvas.width-2*r),
+      y:-r, r:r, speed:2+Math.random()*2
+    });
+  }
+
+  function endGame(){
+    gameOver=true; loseSound.play();
+    hud.textContent=`Game Over! Final Score: ${score}`;
+    restartB.style.display='block';
+  }
+
+  restartB.onclick=()=>{
+    cookies.length=0; particles.length=0;
+    score=0; lives=3; gameOver=false;
+    hud.textContent='Score: 0 | Lives: 3';
+    restartB.style.display='none';
+    lastTime=performance.now();
+    requestAnimationFrame(loop);
+  };
+
+  /* ---------- Game loop ---------- */
+  function loop(ts){
+    if(gameOver) return;
+    const dt=ts-lastTime; lastTime=ts;
+
+    /* Move player */
+    if(player.movingLeft)  player.x=Math.max(0,player.x-player.speed);
+    if(player.movingRight) player.x=Math.min(canvas.width-player.w,player.x+player.speed);
+
+    /* Spawn cookies */
+    if(ts-lastCookie>1200){ spawnCookie(); lastCookie=ts; }
+
+    /* Update cookies */
+    for(let i=cookies.length-1;i>=0;i--){
+      const c=cookies[i]; c.y+=c.speed;
+      /* Vacuum collision */
+      if(player.vacuumOn && c.y+c.r>player.y && c.y<player.y+player.h){
+        if(Math.abs(c.x-(player.x+player.w/2))<40){
+          cookies.splice(i,1); score++; continue;
         }
-        player.vacuumOn = true;
+      }
+      /* Missed */
+      if(c.y-c.r>canvas.height){
+        cookies.splice(i,1); lives--;
+        if(lives<=0){ endGame(); return; }
+      }
+    }
+
+    /* Draw everything */
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    cookies.forEach(c=>{
+      if(cookieImg.complete){
+        ctx.drawImage(cookieImg,c.x-c.r,c.y-c.r,c.r*2,c.r*2);
+      }else{
+        ctx.fillStyle='#d8a45f'; ctx.beginPath();
+        ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.fill();
       }
     });
-    document.addEventListener('keyup', e => {
-      if (e.code === 'ArrowLeft') player.movingLeft = false;
-      if (e.code === 'ArrowRight') player.movingRight = false;
-      if (e.code === 'Space') {
-        player.vacuumOn = false;
-        vacuumSound.pause();
-        vacuumSound.currentTime = 0;
-      }
-    });
-
-    /* ---------- Game Loop ---------- */
-    function loop(timestamp) {
-      if (gameOver) return;
-      const dt = timestamp - lastTime;
-      lastTime = timestamp;
-      update(dt, timestamp);
-      draw();
-      requestAnimationFrame(loop);
+    if(princessImg.complete){
+      ctx.drawImage(princessImg,player.x,player.y,player.w,player.h);
+    }
+    if(player.vacuumOn){
+      ctx.fillStyle='rgba(255,255,255,0.12)';
+      ctx.fillRect(player.x+player.w/2-40,player.y-220,80,220);
     }
 
-    /* ---------- Update State ---------- */
-    function update(dt, timestamp) {
-      // Move player left/right
-      if (player.movingLeft) player.x = Math.max(0, player.x - player.speed);
-      if (player.movingRight) player.x = Math.min(GAME_W - player.w, player.x + player.speed);
+    /* Update HUD */
+    hud.textContent=`Score: ${score} | Lives: ${lives}`;
 
-      // Spawn a new cookie if enough time has passed
-      if (timestamp - lastCookieTime > cookieSpawnInterval) {
-        spawnCookie();
-        lastCookieTime = timestamp;
-      }
+    requestAnimationFrame(loop);
+  }
 
-      // Update each cookie’s position
-      for (let i = cookies.length - 1; i >= 0; i--) {
-        const c = cookies[i];
-        c.y += c.speed;
-
-        // Check collision with vacuum
-        if (
-          player.vacuumOn &&
-          c.y + c.r > player.y &&
-          c.y < player.y + player.h
-        ) {
-          const centerX = player.x + player.w / 2;
-          if (Math.abs(c.x - centerX) < 40) {
-            // In vacuum range → remove cookie and increase score
-            cookies.splice(i, 1);
-            score++;
-            continue;
-          }
-        }
-
-        // If cookie hits bottom of canvas → lose a life
-        if (c.y - c.r > GAME_H) {
-          cookies.splice(i, 1);
-          lives--;
-          if (lives <= 0) {
-            endGame();
-            return;
-          }
-        }
-      }
-
-      // אם השואב מופעל, יוצרים מספר חלקיקים חדשים
-      if (player.vacuumOn) {
-        for (let i = 0; i < particleSpawnRate; i++) {
-          if (particles.length < maxParticles) {
-            // יוצרים חלקיק בקצה השואב (מתחת למרכז הנסיכה)
-            const px = player.x + player.w / 2 + (Math.random() * 40 - 20);
-            const py = player.y + player.h / 2 + 20;
-            particles.push(new Particle(px, py));
-          }
-        }
-      }
-
-      // עדכון כל החלקיקים
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.update(dt);
-        // אם השרידות פגה או שקיפות הורדה ל־0 → מסירים
-        if (p.alpha <= 0) {
-          particles.splice(i, 1);
-        }
-      }
-    }
-
-    /* ---------- Draw Everything ---------- */
-    function draw() {
-      ctx.clearRect(0, 0, GAME_W, GAME_H);
-
-      // Draw all cookies
-      cookies.forEach(c => {
-        if (cookieImg.complete) {
-          // Draw cookie image (width and height = radius*2)
-          ctx.drawImage(cookieImg, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
-        } else {
-          // Fallback shape if image isn't loaded
-          ctx.fillStyle = '#d8a45f';
-          ctx.beginPath();
-          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      });
-
-      // Draw the princess (Oog)
-      if (princessImg.complete) {
-        ctx.drawImage(princessImg, player.x, player.y, player.w, player.h);
-      }
-
-      // Draw vacuum particles behind the princess (so שהן מתחת) 
-      particles.forEach(p => p.draw(ctx));
-
-      // If vacuum is active, draw a semi-transparent funnel shape
-      if (player.vacuumOn) {
-        ctx.save();
-        ctx.globalAlpha = 0.1;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        // צורת משפך משולש: פתח למטה רחב, למעלה צר
-        ctx.moveTo(player.x + player.w / 2 - 60, player.y);
-        ctx.lineTo(player.x + player.w / 2 + 60, player.y);
-        ctx.lineTo(player.x + player.w / 2, player.y + player.h + 100);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // HUD: Score and Lives in English
-      hud.textContent = `Score: ${score} | Lives: ${lives}`;
-    }
-
-    /* ---------- Spawn a New Cookie ---------- */
-    function spawnCookie() {
-      const radius = 24; // fixed radius to match cookie.png size
-      cookies.push({
-        x: radius + Math.random() * (GAME_W - 2 * radius),
-        y: -radius,
-        r: radius,
-        speed: 2 + Math.random() * 2
-      });
-    }
-
-    /* ---------- End Game (Game Over) ---------- */
-    function endGame() {
-      gameOver = true;
-      loseSound.play();
-      hud.textContent = `Game Over! Final Score: ${score}`;
-      restartB.style.display = 'inline-block';
-    }
-
-    /* ---------- Restart Button Handler ---------- */
-    restartB.addEventListener('click', () => {
-      cookies.length = 0;
-      particles.length = 0;
-      score = 0;
-      lives = 3;
-      gameOver = false;
-      restartB.style.display = 'none';
-      lastTime = performance.now();
-      requestAnimationFrame(loop);
-    });
-
-    // Mobile Vacuum Button Touch Events
-    touchVacuum.addEventListener('touchstart', () => {
-      if (!player.vacuumOn) {
-        vacuumSound.currentTime = 0;
-        vacuumSound.play();
-      }
-      player.vacuumOn = true;
-    });
-    touchVacuum.addEventListener('touchend', () => {
-      player.vacuumOn = false;
-      vacuumSound.pause();
-      vacuumSound.currentTime = 0;
-    });
-
-    // Arrow button touch events for mobile
-    leftBtn.addEventListener('touchstart', () => { player.movingLeft = true; });
-    leftBtn.addEventListener('touchend', () => { player.movingLeft = false; });
-    rightBtn.addEventListener('touchstart', () => { player.movingRight = true; });
-    rightBtn.addEventListener('touchend', () => { player.movingRight = false; });
+  /* Start when assets are loaded */
+  Promise.all([princessImg.decode(),cookieImg.decode().catch(()=>{})])
+    .finally(()=>requestAnimationFrame(loop));
   </script>
 </body>
 </html>
