@@ -116,6 +116,33 @@
       #touch-vacuum {
         display: block;
       }
+      #left-btn, #right-btn {
+        display: block;
+      }
+    }
+
+    #left-btn, #right-btn {
+      position: fixed;
+      bottom: 20px;
+      width: 50px;
+      height: 50px;
+      background-color: rgba(255, 202, 40, 0.9);
+      border: none;
+      border-radius: 50%;
+      font-size: 2rem;
+      color: #fff;
+      z-index: 999;
+    }
+    #left-btn {
+      left: 20px;
+    }
+    #right-btn {
+      left: 80px;
+    }
+    @media (min-width: 481px) {
+      #left-btn, #right-btn, #touch-vacuum {
+        display: none;
+      }
     }
   </style>
 </head>
@@ -129,6 +156,8 @@
   </div>
   <button id="restart">Restart</button>
   <button id="touch-vacuum" style="display:none">Vacuum</button>
+  <button id="left-btn" style="display:none">◀️</button>
+  <button id="right-btn" style="display:none">▶️</button>
 
   <script>
     /* ---------- General Setup ---------- */
@@ -137,6 +166,8 @@
     const hud = document.getElementById('hud');
     const restartB = document.getElementById('restart');
     const touchVacuum = document.getElementById('touch-vacuum');
+    const leftBtn = document.getElementById('left-btn');
+    const rightBtn = document.getElementById('right-btn');
 
     const GAME_W = canvas.width;
     const GAME_H = canvas.height;
@@ -433,6 +464,12 @@
       vacuumSound.pause();
       vacuumSound.currentTime = 0;
     });
+
+    // Arrow button touch events for mobile
+    leftBtn.addEventListener('touchstart', () => { player.movingLeft = true; });
+    leftBtn.addEventListener('touchend', () => { player.movingLeft = false; });
+    rightBtn.addEventListener('touchstart', () => { player.movingRight = true; });
+    rightBtn.addEventListener('touchend', () => { player.movingRight = false; });
   </script>
 </body>
 </html>
