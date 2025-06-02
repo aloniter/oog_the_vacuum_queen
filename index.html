@@ -25,7 +25,7 @@ canvas{position:relative;z-index:1;width:100%;height:100%;border:4px solid #ffca
 #restart{display:none;margin:16px 0;padding:12px 24px;font-size:1rem;background:#ffca28;border:none;border-radius:6px;cursor:pointer}
 #restart:hover{opacity:.85}
 
-/* ——— Mobile controls ——— */
+/* ——— Mobile control bar ——— */
 #mobile-controls{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:24px;z-index:2;pointer-events:none}
 #mobile-controls button{width:56px;height:56px;font-size:1.8rem;pointer-events:auto;background:rgba(255,202,40,.9);color:#fff;border:none;border-radius:50%;backdrop-filter:blur(4px)}
 @media (hover:hover) and (pointer:fine){#mobile-controls{display:none}}
@@ -54,7 +54,7 @@ canvas{position:relative;z-index:1;width:100%;height:100%;border:4px solid #ffca
 /* ===== Prevent page scroll ===== */
 document.body.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 
-/* ===== Canvas ===== */
+/* ===== Canvas & context ===== */
 const canvas=document.getElementById('game'), ctx=canvas.getContext('2d');
 
 /* ===== DOM ===== */
@@ -74,9 +74,12 @@ const player={w:80,h:120,x:canvas.width/2-40,y:canvas.height-120,speed:5,movingL
 /* ===== Arnold helper ===== */
 const arnold={active:false,x:-120,y:canvas.height-160,w:120,h:80,speed:0,timer:0};
 function summonArnold(){
-  if(!arnoldImg.complete) return;
-  arnold.active=true; arnold.x=-arnold.w; arnold.y=canvas.height-160;
-  arnold.speed=(canvas.width+arnold.w)/8000; arnold.timer=8000;
+  if(arnold.active||!arnoldImg.complete) return;            // ignore if already on screen
+  arnold.active=true;
+  arnold.x=-arnold.w;
+  arnold.y=canvas.height-160;
+  arnold.speed=(canvas.width+arnold.w)/8000;  // cross in 8 s
+  arnold.timer=8000;
 }
 
 /* ===== Game state ===== */
@@ -90,7 +93,9 @@ class Particle{
   update(dt){const dx=player.x+player.w/2-this.x,dy=player.y+player.h/2-this.y,dist=Math.hypot(dx,dy)+.1,pull=50/dist;
     this.vx+=dx/dist*pull*dt*.001; this.vy+=dy/dist*pull*dt*.001;
     this.x+=this.vx*dt*.06; this.y+=this.vy*dt*.06; this.life+=dt; this.a=Math.max(0,1-this.life/800);}
-  draw(){ctx.save();ctx.globalAlpha=this.a;const g=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.r*2);g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(1,'rgba(173,216,230,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(this.x,this.y,this.r*2,0,Math.PI*2);ctx.fill();ctx.restore();}
+  draw(){ctx.save();ctx.globalAlpha=this.a;const g=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.r*2);
+    g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(1,'rgba(173,216,230,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(this.x,this.y,this.r*2,0,Math.PI*2);ctx.fill();ctx.restore();}
 }
 
 /* ===== Controls — keyboard ===== */
@@ -126,33 +131,47 @@ if(SpeechRec){
 /* ===== Helpers ===== */
 function spawnCookie(){const r=24; cookies.push({x:r+Math.random()*(canvas.width-2*r),y:-r,r,speed:2+Math.random()*2});}
 function endGame(){gameOver=true;loseSound.play();hud.textContent=`Game Over! Final Score: ${score}`;restartB.style.display='block';}
-restartB.onclick=()=>{cookies.length=0;particles.length=0;score=0;lives=3;gameOver=false;hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';lastTime=performance.now();requestAnimationFrame(loop);};
+restartB.onclick=()=>{cookies.length=0;particles.length=0;score=0;lives=3;gameOver=false;
+  hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';
+  lastTime=performance.now();requestAnimationFrame(loop);};
 
 /* ===== Main loop ===== */
 function loop(ts){
   if(gameOver)return;
   const dt=ts-lastTime; lastTime=ts;
 
+  /* Player movement */
   if(player.movingLeft) player.x=Math.max(0,player.x-player.speed);
   if(player.movingRight)player.x=Math.min(canvas.width-player.w,player.x+player.speed);
 
+  /* Arnold movement */
   if(arnold.active){arnold.x+=arnold.speed*dt; arnold.timer-=dt; if(arnold.timer<=0)arnold.active=false;}
 
+  /* Cookie spawn */
   if(ts-lastCookie>1200){spawnCookie(); lastCookie=ts;}
 
+  /* Update cookies */
   for(let i=cookies.length-1;i>=0;i--){
     const c=cookies[i]; c.y+=c.speed;
-    if(player.vacuumOn && c.y+c.r>player.y && c.y<player.y+player.h &&
-       Math.abs(c.x-(player.x+player.w/2))<40){cookies.splice(i,1);score++;continue;}
-    if(arnold.active && c.y+c.r>arnold.y && c.y<arnold.y+arnold.h && c.x>arnold.x && c.x<arnold.x+arnold.w){
-      cookies.splice(i,1);score++;continue;}
+    /* Vacuum collisions */
+    const playerGrab = player.vacuumOn && c.y+c.r>player.y && c.y<player.y+player.h && Math.abs(c.x-(player.x+player.w/2))<40;
+    const arnoldGrab = arnold.active && c.y+c.r>arnold.y && c.y<arnold.y+arnold.h && c.x>arnold.x && c.x<arnold.x+arnold.w;
+    if(playerGrab || arnoldGrab){
+      cookies.splice(i,1); score++;
+      /* New feature: summon Arnold on each multiple of 10 */
+      if(score%10===0) summonArnold();
+      continue;
+    }
+    /* Missed cookie */
     if(c.y-c.r>canvas.height){cookies.splice(i,1);if(--lives<=0)return endGame();}
   }
 
-  if(player.vacuumOn)for(let i=0;i<6;i++)
-    particles.push(new Particle(player.x+player.w/2+(Math.random()*40-20),player.y+player.h/2+20));
+  /* Particle spawn */
+  if(player.vacuumOn)for(let i=0;i<6;i++)particles.push(new Particle(player.x+player.w/2+(Math.random()*40-20),player.y+player.h/2+20));
+  /* Update particles */
   particles.forEach((p,i)=>{p.update(dt); if(p.a<=0)particles.splice(i,1);});
 
+  /* Draw */
   ctx.clearRect(0,0,canvas.width,canvas.height);
   cookies.forEach(c=>{if(cookieImg.complete)ctx.drawImage(cookieImg,c.x-c.r,c.y-c.r,c.r*2,c.r*2);});
   particles.forEach(p=>p.draw());
@@ -163,7 +182,7 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 
-/* ===== Start ===== */
+/* ===== Start game ===== */
 Promise.all([princessImg.decode(),cookieImg.decode(),arnoldImg.decode()])
   .finally(()=>requestAnimationFrame(loop));
 </script>
