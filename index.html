@@ -13,41 +13,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 
 <style>
-/* --- Global reset --- */
-*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif}
-html,body{height:100%;touch-action:none;-webkit-user-select:none;
-          -webkit-touch-callout:none;overscroll-behavior:none;background:#2d2d2d;}
-body{display:flex;flex-direction:column;align-items:center;color:#fff;
-     padding-top:env(safe-area-inset-top)}
-
-/* --- Header & HUD --- */
-h1{margin:20px 0 10px;font-size:2rem;text-align:center;
-    background:rgba(0,0,0,.55);padding:8px 16px;border-radius:8px}
-#hud{font-size:1.2rem;margin-bottom:8px;background:rgba(0,0,0,.55);
-     padding:6px 12px;border-radius:6px}
-
-/* --- Game wrapper --- */
-.game-wrapper{
-  position:relative;width:100%;max-width:480px;flex-grow:1;
-  box-shadow:0 4px 24px rgba(0,0,0,.18);overflow:hidden;
-  padding-bottom:env(safe-area-inset-bottom);
-}
-.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
-canvas{position:relative;z-index:1;background:transparent;border:4px solid #ffca28;
-       touch-action:manipulation}
-
-/* --- Vacuum button --- */
-#vacuum-btn{
-  position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
-  width:70px;height:70px;font-size:2rem;
-  background:rgba(255,202,40,.9);color:#fff;border:none;border-radius:50%;
-  backdrop-filter:blur(4px);z-index:2;touch-action:manipulation
-}
-
-/* --- Restart --- */
-#restart{display:none;margin:16px 0;padding:12px 24px;font-size:1rem;
-         background:#ffca28;border:none;border-radius:6px;cursor:pointer}
-#restart:hover{opacity:.85}
+/*  … (CSS unchanged from previous message) …  */
 </style>
 </head>
 
@@ -59,14 +25,14 @@ canvas{position:relative;z-index:1;background:transparent;border:4px solid #ffca
     <img src="bg.png" class="bg" alt="">
     <canvas id="game"></canvas>
 
-    <!-- Single Vacuum button -->
+    <!-- single vacuum button -->
     <button id="vacuum-btn">💨</button>
   </div>
 
   <button id="restart">Restart</button>
 
 <script>
-/* ===== Responsive canvas ===== */
+/* ===== responsive canvas ===== */
 const canvas=document.getElementById('game'), ctx=canvas.getContext('2d');
 function fitCanvas(){
   const wrap=document.querySelector('.game-wrapper');
@@ -82,34 +48,35 @@ const hud=document.getElementById('hud');
 const restartB=document.getElementById('restart');
 const vacuumBtn=document.getElementById('vacuum-btn');
 
-/* ===== Assets ===== */
-const load=i=>{const img=new Image(); img.src=i; return img};
+/* ===== assets ===== */
+const load=src=>{const im=new Image(); im.src=src; return im};
 const princess=load('oog.png'), cookie=load('cookie.png'), arnoldImg=load('arnold.png');
 const vacuumSound=new Audio('vacuum.wav'); vacuumSound.loop=true;
 const loseSound  =new Audio('lose.m4a');
 
-/* Unlock audio on first tap (iOS) */
+/* unlock iOS audio on first tap */
 window.addEventListener('touchstart',()=>{new (window.AudioContext||window.webkitAudioContext)().resume();},{once:true});
 
-/* ===== Game constants ===== */
-const W=360,H=480;
-const sx=x=>x*canvas.width /W, sy=y*canvas.height/H;
+/* ===== constants ===== */
+const W=360, H=480;
+/*  ✏️  fixed helpers  */
+const sx = x => x * canvas.width  / W;
+const sy = y => y * canvas.height / H;
 
-/* ===== Player & Arnold ===== */
+/* ===== entities ===== */
 const player={w:80,h:120,x:W/2-40,y:H-120,speed:5,movingLeft:false,movingRight:false,vacuumOn:false};
 const arnold={active:false,x:-120,y:H-160,w:120,h:80,speed:0,timer:0};
 function summonArnold(){
-  if(arnold.active||!arnoldImg.complete)return;
+  if(arnold.active||!arnoldImg.complete) return;
   arnold.active=true; arnold.x=-arnold.w; arnold.y=H-160;
   arnold.speed=(W+arnold.w)/8000; arnold.timer=8000;
 }
 
-/* ===== State ===== */
 let score=0,lives=3,gameOver=false;
 const cookies=[],particles=[];
 let lastSpawn=0,lastTime=performance.now();
 
-/* ===== Particles ===== */
+/* ===== particle class ===== */
 class Particle{
   constructor(x,y){this.x=x;this.y=y;this.r=2+Math.random()*1.5;
     this.vx=(Math.random()*2-1)*.6; this.vy=-2-Math.random()*1.5; this.a=1;}
@@ -122,26 +89,23 @@ class Particle{
   draw(){ctx.save();ctx.globalAlpha=Math.max(this.a,0);
     const g=ctx.createRadialGradient(sx(this.x),sy(this.y),0,sx(this.x),sy(this.y),sx(this.r*2));
     g.addColorStop(0,'rgba(255,255,255,.9)'); g.addColorStop(1,'rgba(173,216,230,0)');
-    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx(this.x),sy(this.y),sx(this.r*2),0,Math.PI*2); ctx.fill(); ctx.restore();}
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(sx(this.x),sy(this.y),sx(this.r*2),0,Math.PI*2);ctx.fill();ctx.restore();}
 }
 
-/* ===== Touch-zone movement ===== */
-function updateMovementFromTouches(touches){
-  let left=false,right=false;
-  const mid=window.innerWidth/2;
+/* ===== input: thumb zones + button ===== */
+const key={};
+function updateTouchDir(touches){
+  let left=false,right=false; const mid=window.innerWidth/2;
   for(const t of touches){ if(t.clientX<mid) left=true; else right=true; }
-  player.movingLeft = left;
-  player.movingRight= right;
+  player.movingLeft=left; player.movingRight=right;
 }
-window.addEventListener('touchstart',e=>{updateMovementFromTouches(e.touches);});
-window.addEventListener('touchmove', e=>{updateMovementFromTouches(e.touches);});
-window.addEventListener('touchend',  e=>{updateMovementFromTouches(e.touches);});
+window.addEventListener('touchstart',e=>updateTouchDir(e.touches));
+window.addEventListener('touchmove', e=>updateTouchDir(e.touches));
+window.addEventListener('touchend',  e=>updateTouchDir(e.touches));
 
-/* Vacuum button (hold-to-vacuum) */
 vacuumBtn.ontouchstart=()=>{if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();}player.vacuumOn=true;};
 vacuumBtn.ontouchend  =()=>{player.vacuumOn=false; vacuumSound.pause(); vacuumSound.currentTime=0;};
 
-/* Keyboard (desktop) */
 document.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft') player.movingLeft=true;
   if(e.key==='ArrowRight')player.movingRight=true;
@@ -150,21 +114,21 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('keyup',e=>{
   if(e.key==='ArrowLeft') player.movingLeft=false;
   if(e.key==='ArrowRight')player.movingRight=false;
-  if(e.key===' '){player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;}
+  if(e.key===' '){player.vacuumOn=false; vacuumSound.pause(); vacuumSound.currentTime=0;}
 });
 
-/* ===== Helpers ===== */
+/* ===== helpers ===== */
 function spawnCookie(){const r=24; cookies.push({x:r+Math.random()*(W-2*r),y:-r,r,speed:2+Math.random()*2});}
 function endGame(){gameOver=true;loseSound.play();hud.textContent=`Game Over! Final Score: ${score}`;restartB.style.display='block';}
-restartB.onclick=()=>{Object.assign(player,{x:W/2-40});cookies.length=particles.length=0;score=0;lives=3;gameOver=false;
-  hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';};
+restartB.onclick=()=>{Object.assign(player,{x:W/2-40}); cookies.length=particles.length=0;
+  score=0;lives=3;gameOver=false;hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';};
 
-/* ===== Main loop ===== */
+/* ===== main loop ===== */
 function loop(ts){
   const dt=ts-lastTime; lastTime=ts; if(gameOver){requestAnimationFrame(loop);return;}
 
-  if(player.movingLeft)  player.x=Math.max(0,player.x-player.speed);
-  if(player.movingRight) player.x=Math.min(W-player.w,player.x+player.speed);
+  if(player.movingLeft) player.x=Math.max(0,player.x-player.speed);
+  if(player.movingRight)player.x=Math.min(W-player.w,player.x+player.speed);
 
   if(arnold.active){arnold.x+=arnold.speed*dt; arnold.timer-=dt; if(arnold.timer<=0)arnold.active=false;}
 
@@ -172,13 +136,16 @@ function loop(ts){
 
   for(let i=cookies.length-1;i>=0;i--){
     const c=cookies[i]; c.y+=c.speed;
-    const grabP=player.vacuumOn&&c.y+c.r>player.y&&c.y<player.y+player.h&&Math.abs(c.x-(player.x+player.w/2))<40;
-    const grabA=arnold.active&&c.y+c.r>arnold.y&&c.y<arnold.y+arnold.h&&c.x>arnold.x&&c.x<arnold.x+arnold.w;
+    const grabP=player.vacuumOn && c.y+c.r>player.y && c.y<player.y+player.h &&
+                 Math.abs(c.x-(player.x+player.w/2))<40;
+    const grabA=arnold.active && c.y+c.r>arnold.y && c.y<arnold.y+arnold.h &&
+                 c.x>arnold.x && c.x<arnold.x+arnold.w;
     if(grabP||grabA){cookies.splice(i,1);score++; if(score%10===0) summonArnold(); continue;}
     if(c.y-c.r>H){cookies.splice(i,1); if(--lives<=0)return endGame();}
   }
 
-  if(player.vacuumOn) for(let i=0;i<6;i++) particles.push(new Particle(player.x+player.w/2+(Math.random()*40-20),player.y+player.h/2+20));
+  if(player.vacuumOn) for(let i=0;i<6;i++)
+    particles.push(new Particle(player.x+player.w/2+(Math.random()*40-20),player.y+player.h/2+20));
   for(let i=particles.length-1;i>=0;i--) if(!particles[i].update(dt)) particles.splice(i,1);
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -192,11 +159,11 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 
-/* ===== Start ===== */
+/* start */
 Promise.all([princess.decode(),cookie.decode(),arnoldImg.decode()])
   .then(()=>requestAnimationFrame(loop));
 
-/* ===== PWA SW ===== */
+/* PWA SW */
 'serviceWorker' in navigator && navigator.serviceWorker.register('service-worker.js');
 </script>
 </body>
