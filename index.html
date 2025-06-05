@@ -1,38 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <!-- PWA viewport lock -->
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta charset="UTF-8" />
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Oog’s Majestic Cookie Vacuum</title>
 
-  <!-- Manifest & theme  -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#ffca28">
+<!-- PWA bits -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ffca28">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 
-  <!-- iOS “Add to Home Screen” -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+/* ---------- Reset + basics ---------- */
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif}
+html,body{height:100%;width:100%;touch-action:none;-webkit-user-select:none;
+          -webkit-touch-callout:none;overscroll-behavior:none;background:#2d2d2d;}
+body{display:flex;flex-direction:column;align-items:center;color:#fff;
+     padding-top:env(safe-area-inset-top)}
 
-  <title>Oog’s Majestic Cookie Vacuum</title>
+/* ---------- Title & HUD ---------- */
+h1{margin:20px 0 10px;font-size:2rem;text-align:center;background:rgba(0,0,0,.55);
+   padding:8px 16px;border-radius:8px;}
+#hud{font-size:1.2rem;margin-bottom:8px;background:rgba(0,0,0,.55);
+     padding:6px 12px;border-radius:6px}
 
-  <!-- —— styles exactly as before (truncated for brevity) —— -->
-  <style>
-  /* …  (PLACE THE SAME CSS YOU ALREADY HAD HERE) … */
-  </style>
+/* ---------- Game wrapper ---------- */
+.game-wrapper{position:relative;width:100%;max-width:480px;flex-grow:1;
+              box-shadow:0 4px 24px rgba(0,0,0,.18);overflow:hidden;
+              padding-bottom:env(safe-area-inset-bottom);}
+.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+canvas{position:relative;z-index:1;background:transparent;border:4px solid #ffca28;
+       touch-action:manipulation}
+
+/* ---------- Restart ---------- */
+#restart{display:none;margin:16px 0;padding:12px 24px;font-size:1rem;
+         background:#ffca28;border:none;border-radius:6px;cursor:pointer}
+#restart:hover{opacity:.85}
+
+/* ---------- Mobile control bar ---------- */
+#mobile-controls{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+                 display:flex;gap:24px;z-index:2;pointer-events:none}
+#mobile-controls button{width:56px;height:56px;font-size:1.8rem;pointer-events:auto;
+                        background:rgba(255,202,40,.9);color:#fff;border:none;
+                        border-radius:50%;backdrop-filter:blur(4px)}
+@media (hover:hover) and (pointer:fine){#mobile-controls{display:none}}
+</style>
 </head>
 
 <body>
-  <!-- header + HUD + game wrapper exactly as before -->
   <h1>👑 Oog’s Majestic Cookie Vacuum 👑</h1>
-  <div id="hud">Score: 0&nbsp;|&nbsp;Lives: 3</div>
+  <div id="hud">Score: 0 | Lives: 3</div>
 
   <div class="game-wrapper">
     <img src="bg.png" class="bg" alt="">
-    <canvas id="game" width="360" height="480"></canvas>
+    <canvas id="game"></canvas>
 
-    <!-- mobile control bar (unchanged) -->
+    <!-- Mobile controls -->
     <div id="mobile-controls">
       <button id="left-btn">◀️</button>
       <button id="vacuum-btn">💨</button>
@@ -42,20 +68,131 @@
 
   <button id="restart">Restart</button>
 
-  <!-- —— the ENTIRE game script you already have —— -->
-  <script>
-  /* …  (PASTE THE WORKING GAME CODE HERE – unchanged) … */
-  </script>
+<script>
+/* ===== Responsive canvas ===== */
+const canvas=document.getElementById('game'), ctx=canvas.getContext('2d');
+function fitCanvas(){
+  const wrap=document.querySelector('.game-wrapper');
+  const dpr=window.devicePixelRatio||1;
+  canvas.width =wrap.clientWidth *dpr;
+  canvas.height=wrap.clientHeight*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',fitCanvas,{passive:true});
+fitCanvas();
 
-  <!-- PWA service-worker registration -->
-  <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(r => console.log('✅ Service-Worker registered', r.scope))
-        .catch(err => console.error('SW registration failed:', err));
-    });
+/* ===== DOM refs ===== */
+const hud=document.getElementById('hud'), restartB=document.getElementById('restart');
+const [leftBtn,vacuumBtn,rightBtn]=['left-btn','vacuum-btn','right-btn'].map(id=>document.getElementById(id));
+
+/* ===== Assets ===== */
+const i=s=>{const img=new Image();img.src=s;return img;};
+const princess=i('oog.png'), cookie=i('cookie.png'), arnoldImg=i('arnold.png');
+const vacuumSound=new Audio('vacuum.wav'); vacuumSound.loop=true;
+const loseSound  =new Audio('lose.m4a');
+
+/* ===== Unlock iOS audio ===== */
+window.addEventListener('touchstart',()=>{new AudioContext().resume();},{once:true});
+
+/* ===== Constants ===== */
+const W=360,H=480;
+
+/* Scale helpers */
+const sx=x=>x*canvas.width /W, sy=y=>y*canvas.height/H;
+
+/* ===== Game objects ===== */
+const player={w:80,h:120,x:W/2-40,y:H-120,speed:5, movingLeft:false,movingRight:false,vacuumOn:false};
+const arnold={active:false,x:-120,y:H-160,w:120,h:80,speed:0,timer:0};
+function summonArnold(){
+  if(arnold.active||!arnoldImg.complete)return;
+  arnold.active=true; arnold.x=-arnold.w; arnold.y=H-160;
+  arnold.speed=(W+arnold.w)/8000; arnold.timer=8000;
+}
+let score=0,lives=3,gameOver=false;
+const cookies=[],particles=[]; let lastSpawn=0,lastTime=performance.now();
+
+/* ===== Particle ===== */
+class Particle{
+  constructor(x,y){this.x=x;this.y=y;this.r=2+Math.random()*1.5;
+    this.vx=(Math.random()*2-1)*.6; this.vy=-2-Math.random()*1.5; this.a=1;}
+  update(dt){
+    const cx=player.x+player.w/2,cy=player.y+player.h/2,
+          dx=cx-this.x,dy=cy-this.y,d=Math.hypot(dx,dy)+.1,p=50/d;
+    this.vx+=dx/d*p*dt*.001; this.vy+=dy/d*p*dt*.001;
+    this.x+=this.vx*dt*.06;  this.y+=this.vy*dt*.06;
+    this.a-=dt/800; return this.a>0;
   }
-  </script>
+  draw(){ctx.save();ctx.globalAlpha=Math.max(this.a,0);
+    const g=ctx.createRadialGradient(sx(this.x),sy(this.y),0,sx(this.x),sy(this.y),sx(this.r*2));
+    g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(1,'rgba(173,216,230,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(sx(this.x),sy(this.y),sx(this.r*2),0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+}
+
+/* ===== Input ===== */
+const key={};
+document.addEventListener('keydown',e=>{
+  if(['ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
+  key[e.key]=true; if(e.key===' ') startVacuum();
+});
+document.addEventListener('keyup',e=>{key[e.key]=false; if(e.key===' ') stopVacuum();});
+leftBtn.ontouchstart=()=>key.left=true;    leftBtn.ontouchend=()=>key.left=false;
+rightBtn.ontouchstart=()=>key.right=true;  rightBtn.ontouchend=()=>key.right=false;
+vacuumBtn.ontouchstart=startVacuum;        vacuumBtn.ontouchend  =stopVacuum;
+function startVacuum(){if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();}player.vacuumOn=true;}
+function stopVacuum(){player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;}
+
+/* ===== Helpers ===== */
+function spawnCookie(){const r=24; cookies.push({x:r+Math.random()*(W-2*r),y:-r,r,speed:2+Math.random()*2});}
+function endGame(){gameOver=true;loseSound.play();hud.textContent=`Game Over! Final Score: ${score}`;restartB.style.display='block';}
+restartB.onclick=()=>{Object.assign(player,{x:W/2-40});cookies.length=particles.length=0;score=0;lives=3;gameOver=false;hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';};
+
+/* ===== Game loop ===== */
+function loop(ts){
+  const dt=ts-lastTime; lastTime=ts;
+  if(gameOver){requestAnimationFrame(loop);return;}
+
+  player.movingLeft= key['ArrowLeft']||key.left;
+  player.movingRight=key['ArrowRight']||key.right;
+  if(player.movingLeft) player.x=Math.max(0,player.x-player.speed);
+  if(player.movingRight)player.x=Math.min(W-player.w,player.x+player.speed);
+
+  if(arnold.active){arnold.x+=arnold.speed*dt; arnold.timer-=dt; if(arnold.timer<=0)arnold.active=false;}
+
+  if(ts-lastSpawn>1200){spawnCookie(); lastSpawn=ts;}
+
+  for(let i=cookies.length-1;i>=0;i--){
+    const c=cookies[i]; c.y+=c.speed;
+    const grabPlayer=player.vacuumOn&&c.y+c.r>player.y&&c.y<player.y+player.h&&Math.abs(c.x-(player.x+player.w/2))<40;
+    const grabArnold=arnold.active&&c.y+c.r>arnold.y&&c.y<arnold.y+arnold.h&&c.x>arnold.x&&c.x<arnold.x+arnold.w;
+    if(grabPlayer||grabArnold){
+      cookies.splice(i,1); score++;
+      if(score%10===0) summonArnold();
+      continue;
+    }
+    if(c.y-c.r>H){cookies.splice(i,1); if(--lives<=0)return endGame();}
+  }
+
+  if(player.vacuumOn) for(let i=0;i<6;i++) particles.push(new Particle(player.x+player.w/2+(Math.random()*40-20),player.y+player.h/2+20));
+  for(let i=particles.length-1;i>=0;i--) if(!particles[i].update(dt)) particles.splice(i,1);
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  cookies.forEach(c=>cookie.complete&&ctx.drawImage(cookie,sx(c.x-c.r),sy(c.y-c.r),sx(c.r*2),sy(c.r*2)));
+  particles.forEach(p=>p.draw());
+  princess.complete&&ctx.drawImage(princess,sx(player.x),sy(player.y),sx(player.w),sy(player.h));
+  arnold.active&&arnoldImg.complete&&ctx.drawImage(arnoldImg,sx(arnold.x),sy(arnold.y),sx(arnold.w),sy(arnold.h));
+  if(player.vacuumOn){ctx.fillStyle='rgba(255,255,255,.1)';ctx.fillRect(sx(player.x+player.w/2-40),sy(player.y-220),sx(80),sy(220));}
+
+  hud.textContent=`Score: ${score} | Lives: ${lives}`;
+  requestAnimationFrame(loop);
+}
+
+/* ===== Start ===== */
+Promise.all([princess.decode(),cookie.decode(),arnoldImg.decode()])
+  .then(()=>requestAnimationFrame(loop));
+
+/* ===== Service-worker ===== */
+'serviceWorker' in navigator && navigator.serviceWorker.register('service-worker.js');
+</script>
 </body>
 </html>
