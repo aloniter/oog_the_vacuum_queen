@@ -198,7 +198,7 @@ function loop(t){
     const grabA = arnold.active &&
                   c.y+c.r>arnold.y && c.y<arnold.y+arnold.h &&
                   c.x>arnold.x && c.x<arnold.x+arnold.w;
-    if(grabP||grabA){cookies.splice(i,1); score++; if(score%10===0) summonArnold(); continue;}
+    if(grabP||grabA){cookies.splice(i,1); score++; if(score%5===0) summonArnold(); continue;}
     if(c.y-c.r>LOG_H){cookies.splice(i,1); if(--lives<=0) return endGame();}
   }
 
