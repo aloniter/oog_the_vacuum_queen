@@ -6,7 +6,6 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Oog’s Majestic Cookie Vacuum</title>
 
-<!-- PWA bits -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ffca28">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,39 +13,41 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 
 <style>
-/* ---------- Reset + basics ---------- */
+/* --- Global reset --- */
 *{box-sizing:border-box;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif}
-html,body{height:100%;width:100%;touch-action:none;-webkit-user-select:none;
+html,body{height:100%;touch-action:none;-webkit-user-select:none;
           -webkit-touch-callout:none;overscroll-behavior:none;background:#2d2d2d;}
 body{display:flex;flex-direction:column;align-items:center;color:#fff;
      padding-top:env(safe-area-inset-top)}
 
-/* ---------- Title & HUD ---------- */
-h1{margin:20px 0 10px;font-size:2rem;text-align:center;background:rgba(0,0,0,.55);
-   padding:8px 16px;border-radius:8px;}
+/* --- Header & HUD --- */
+h1{margin:20px 0 10px;font-size:2rem;text-align:center;
+    background:rgba(0,0,0,.55);padding:8px 16px;border-radius:8px}
 #hud{font-size:1.2rem;margin-bottom:8px;background:rgba(0,0,0,.55);
      padding:6px 12px;border-radius:6px}
 
-/* ---------- Game wrapper ---------- */
-.game-wrapper{position:relative;width:100%;max-width:480px;flex-grow:1;
-              box-shadow:0 4px 24px rgba(0,0,0,.18);overflow:hidden;
-              padding-bottom:env(safe-area-inset-bottom);}
+/* --- Game wrapper --- */
+.game-wrapper{
+  position:relative;width:100%;max-width:480px;flex-grow:1;
+  box-shadow:0 4px 24px rgba(0,0,0,.18);overflow:hidden;
+  padding-bottom:env(safe-area-inset-bottom);
+}
 .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
 canvas{position:relative;z-index:1;background:transparent;border:4px solid #ffca28;
        touch-action:manipulation}
 
-/* ---------- Restart ---------- */
+/* --- Vacuum button --- */
+#vacuum-btn{
+  position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+  width:70px;height:70px;font-size:2rem;
+  background:rgba(255,202,40,.9);color:#fff;border:none;border-radius:50%;
+  backdrop-filter:blur(4px);z-index:2;touch-action:manipulation
+}
+
+/* --- Restart --- */
 #restart{display:none;margin:16px 0;padding:12px 24px;font-size:1rem;
          background:#ffca28;border:none;border-radius:6px;cursor:pointer}
 #restart:hover{opacity:.85}
-
-/* ---------- Mobile control bar ---------- */
-#mobile-controls{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
-                 display:flex;gap:24px;z-index:2;pointer-events:none}
-#mobile-controls button{width:56px;height:56px;font-size:1.8rem;pointer-events:auto;
-                        background:rgba(255,202,40,.9);color:#fff;border:none;
-                        border-radius:50%;backdrop-filter:blur(4px)}
-@media (hover:hover) and (pointer:fine){#mobile-controls{display:none}}
 </style>
 </head>
 
@@ -58,12 +59,8 @@ canvas{position:relative;z-index:1;background:transparent;border:4px solid #ffca
     <img src="bg.png" class="bg" alt="">
     <canvas id="game"></canvas>
 
-    <!-- Mobile controls -->
-    <div id="mobile-controls">
-      <button id="left-btn">◀️</button>
-      <button id="vacuum-btn">💨</button>
-      <button id="right-btn">▶️</button>
-    </div>
+    <!-- Single Vacuum button -->
+    <button id="vacuum-btn">💨</button>
   </div>
 
   <button id="restart">Restart</button>
@@ -78,84 +75,96 @@ function fitCanvas(){
   canvas.height=wrap.clientHeight*dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
 }
-window.addEventListener('resize',fitCanvas,{passive:true});
-fitCanvas();
+window.addEventListener('resize',fitCanvas,{passive:true}); fitCanvas();
 
-/* ===== DOM refs ===== */
-const hud=document.getElementById('hud'), restartB=document.getElementById('restart');
-const [leftBtn,vacuumBtn,rightBtn]=['left-btn','vacuum-btn','right-btn'].map(id=>document.getElementById(id));
+/* ===== DOM ===== */
+const hud=document.getElementById('hud');
+const restartB=document.getElementById('restart');
+const vacuumBtn=document.getElementById('vacuum-btn');
 
 /* ===== Assets ===== */
-const i=s=>{const img=new Image();img.src=s;return img;};
-const princess=i('oog.png'), cookie=i('cookie.png'), arnoldImg=i('arnold.png');
+const load=i=>{const img=new Image(); img.src=i; return img};
+const princess=load('oog.png'), cookie=load('cookie.png'), arnoldImg=load('arnold.png');
 const vacuumSound=new Audio('vacuum.wav'); vacuumSound.loop=true;
 const loseSound  =new Audio('lose.m4a');
 
-/* ===== Unlock iOS audio ===== */
-window.addEventListener('touchstart',()=>{new AudioContext().resume();},{once:true});
+/* Unlock audio on first tap (iOS) */
+window.addEventListener('touchstart',()=>{new (window.AudioContext||window.webkitAudioContext)().resume();},{once:true});
 
-/* ===== Constants ===== */
+/* ===== Game constants ===== */
 const W=360,H=480;
+const sx=x=>x*canvas.width /W, sy=y*canvas.height/H;
 
-/* Scale helpers */
-const sx=x=>x*canvas.width /W, sy=y=>y*canvas.height/H;
-
-/* ===== Game objects ===== */
-const player={w:80,h:120,x:W/2-40,y:H-120,speed:5, movingLeft:false,movingRight:false,vacuumOn:false};
+/* ===== Player & Arnold ===== */
+const player={w:80,h:120,x:W/2-40,y:H-120,speed:5,movingLeft:false,movingRight:false,vacuumOn:false};
 const arnold={active:false,x:-120,y:H-160,w:120,h:80,speed:0,timer:0};
 function summonArnold(){
   if(arnold.active||!arnoldImg.complete)return;
   arnold.active=true; arnold.x=-arnold.w; arnold.y=H-160;
   arnold.speed=(W+arnold.w)/8000; arnold.timer=8000;
 }
-let score=0,lives=3,gameOver=false;
-const cookies=[],particles=[]; let lastSpawn=0,lastTime=performance.now();
 
-/* ===== Particle ===== */
+/* ===== State ===== */
+let score=0,lives=3,gameOver=false;
+const cookies=[],particles=[];
+let lastSpawn=0,lastTime=performance.now();
+
+/* ===== Particles ===== */
 class Particle{
   constructor(x,y){this.x=x;this.y=y;this.r=2+Math.random()*1.5;
     this.vx=(Math.random()*2-1)*.6; this.vy=-2-Math.random()*1.5; this.a=1;}
   update(dt){
-    const cx=player.x+player.w/2,cy=player.y+player.h/2,
-          dx=cx-this.x,dy=cy-this.y,d=Math.hypot(dx,dy)+.1,p=50/d;
+    const dx=player.x+player.w/2-this.x,dy=player.y+player.h/2-this.y,d=Math.hypot(dx,dy)+.1,p=50/d;
     this.vx+=dx/d*p*dt*.001; this.vy+=dy/d*p*dt*.001;
-    this.x+=this.vx*dt*.06;  this.y+=this.vy*dt*.06;
-    this.a-=dt/800; return this.a>0;
+    this.x+=this.vx*dt*.06; this.y+=this.vy*dt*.06; this.a-=dt/800;
+    return this.a>0;
   }
   draw(){ctx.save();ctx.globalAlpha=Math.max(this.a,0);
     const g=ctx.createRadialGradient(sx(this.x),sy(this.y),0,sx(this.x),sy(this.y),sx(this.r*2));
-    g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(1,'rgba(173,216,230,0)');
-    ctx.fillStyle=g;ctx.beginPath();ctx.arc(sx(this.x),sy(this.y),sx(this.r*2),0,Math.PI*2);ctx.fill();ctx.restore();
-  }
+    g.addColorStop(0,'rgba(255,255,255,.9)'); g.addColorStop(1,'rgba(173,216,230,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx(this.x),sy(this.y),sx(this.r*2),0,Math.PI*2); ctx.fill(); ctx.restore();}
 }
 
-/* ===== Input ===== */
-const key={};
+/* ===== Touch-zone movement ===== */
+function updateMovementFromTouches(touches){
+  let left=false,right=false;
+  const mid=window.innerWidth/2;
+  for(const t of touches){ if(t.clientX<mid) left=true; else right=true; }
+  player.movingLeft = left;
+  player.movingRight= right;
+}
+window.addEventListener('touchstart',e=>{updateMovementFromTouches(e.touches);});
+window.addEventListener('touchmove', e=>{updateMovementFromTouches(e.touches);});
+window.addEventListener('touchend',  e=>{updateMovementFromTouches(e.touches);});
+
+/* Vacuum button (hold-to-vacuum) */
+vacuumBtn.ontouchstart=()=>{if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();}player.vacuumOn=true;};
+vacuumBtn.ontouchend  =()=>{player.vacuumOn=false; vacuumSound.pause(); vacuumSound.currentTime=0;};
+
+/* Keyboard (desktop) */
 document.addEventListener('keydown',e=>{
-  if(['ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
-  key[e.key]=true; if(e.key===' ') startVacuum();
+  if(e.key==='ArrowLeft') player.movingLeft=true;
+  if(e.key==='ArrowRight')player.movingRight=true;
+  if(e.key===' '){ if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();} player.vacuumOn=true;}
 });
-document.addEventListener('keyup',e=>{key[e.key]=false; if(e.key===' ') stopVacuum();});
-leftBtn.ontouchstart=()=>key.left=true;    leftBtn.ontouchend=()=>key.left=false;
-rightBtn.ontouchstart=()=>key.right=true;  rightBtn.ontouchend=()=>key.right=false;
-vacuumBtn.ontouchstart=startVacuum;        vacuumBtn.ontouchend  =stopVacuum;
-function startVacuum(){if(!player.vacuumOn){vacuumSound.currentTime=0;vacuumSound.play();}player.vacuumOn=true;}
-function stopVacuum(){player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;}
+document.addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft') player.movingLeft=false;
+  if(e.key==='ArrowRight')player.movingRight=false;
+  if(e.key===' '){player.vacuumOn=false;vacuumSound.pause();vacuumSound.currentTime=0;}
+});
 
 /* ===== Helpers ===== */
 function spawnCookie(){const r=24; cookies.push({x:r+Math.random()*(W-2*r),y:-r,r,speed:2+Math.random()*2});}
 function endGame(){gameOver=true;loseSound.play();hud.textContent=`Game Over! Final Score: ${score}`;restartB.style.display='block';}
-restartB.onclick=()=>{Object.assign(player,{x:W/2-40});cookies.length=particles.length=0;score=0;lives=3;gameOver=false;hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';};
+restartB.onclick=()=>{Object.assign(player,{x:W/2-40});cookies.length=particles.length=0;score=0;lives=3;gameOver=false;
+  hud.textContent='Score: 0 | Lives: 3';restartB.style.display='none';};
 
-/* ===== Game loop ===== */
+/* ===== Main loop ===== */
 function loop(ts){
-  const dt=ts-lastTime; lastTime=ts;
-  if(gameOver){requestAnimationFrame(loop);return;}
+  const dt=ts-lastTime; lastTime=ts; if(gameOver){requestAnimationFrame(loop);return;}
 
-  player.movingLeft= key['ArrowLeft']||key.left;
-  player.movingRight=key['ArrowRight']||key.right;
-  if(player.movingLeft) player.x=Math.max(0,player.x-player.speed);
-  if(player.movingRight)player.x=Math.min(W-player.w,player.x+player.speed);
+  if(player.movingLeft)  player.x=Math.max(0,player.x-player.speed);
+  if(player.movingRight) player.x=Math.min(W-player.w,player.x+player.speed);
 
   if(arnold.active){arnold.x+=arnold.speed*dt; arnold.timer-=dt; if(arnold.timer<=0)arnold.active=false;}
 
@@ -163,13 +172,9 @@ function loop(ts){
 
   for(let i=cookies.length-1;i>=0;i--){
     const c=cookies[i]; c.y+=c.speed;
-    const grabPlayer=player.vacuumOn&&c.y+c.r>player.y&&c.y<player.y+player.h&&Math.abs(c.x-(player.x+player.w/2))<40;
-    const grabArnold=arnold.active&&c.y+c.r>arnold.y&&c.y<arnold.y+arnold.h&&c.x>arnold.x&&c.x<arnold.x+arnold.w;
-    if(grabPlayer||grabArnold){
-      cookies.splice(i,1); score++;
-      if(score%10===0) summonArnold();
-      continue;
-    }
+    const grabP=player.vacuumOn&&c.y+c.r>player.y&&c.y<player.y+player.h&&Math.abs(c.x-(player.x+player.w/2))<40;
+    const grabA=arnold.active&&c.y+c.r>arnold.y&&c.y<arnold.y+arnold.h&&c.x>arnold.x&&c.x<arnold.x+arnold.w;
+    if(grabP||grabA){cookies.splice(i,1);score++; if(score%10===0) summonArnold(); continue;}
     if(c.y-c.r>H){cookies.splice(i,1); if(--lives<=0)return endGame();}
   }
 
@@ -181,8 +186,8 @@ function loop(ts){
   particles.forEach(p=>p.draw());
   princess.complete&&ctx.drawImage(princess,sx(player.x),sy(player.y),sx(player.w),sy(player.h));
   arnold.active&&arnoldImg.complete&&ctx.drawImage(arnoldImg,sx(arnold.x),sy(arnold.y),sx(arnold.w),sy(arnold.h));
-  if(player.vacuumOn){ctx.fillStyle='rgba(255,255,255,.1)';ctx.fillRect(sx(player.x+player.w/2-40),sy(player.y-220),sx(80),sy(220));}
-
+  if(player.vacuumOn){ctx.fillStyle='rgba(255,255,255,.1)';
+    ctx.fillRect(sx(player.x+player.w/2-40),sy(player.y-220),sx(80),sy(220));}
   hud.textContent=`Score: ${score} | Lives: ${lives}`;
   requestAnimationFrame(loop);
 }
@@ -191,7 +196,7 @@ function loop(ts){
 Promise.all([princess.decode(),cookie.decode(),arnoldImg.decode()])
   .then(()=>requestAnimationFrame(loop));
 
-/* ===== Service-worker ===== */
+/* ===== PWA SW ===== */
 'serviceWorker' in navigator && navigator.serviceWorker.register('service-worker.js');
 </script>
 </body>
