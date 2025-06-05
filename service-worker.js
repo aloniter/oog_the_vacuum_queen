@@ -1,24 +1,19 @@
 /*  Simple cache-first Service-Worker for the game  */
 const CACHE_NAME = "oog-vacuum-cache-v1";
 
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./service-worker.js",
-
-  /* images */
-  "./bg.png",
-  "./oog.png",
-  "./cookie.png",
-  "./arnold.png",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-
-  /* sounds */
-  "./vacuum.wav",
-  "./lose.m4a"
-];
+ const ASSETS = [
+   "./",
+   "./index.html",
+   "./manifest.json",
+   "./service-worker.js",
++  "./icon.png",
+   "./bg.png",
+   "./oog.png",
+   "./cookie.png",
+   "./arnold.png",
+   "./vacuum.wav",
+   "./lose.m4a"
+ ];
 
 /* install – pre-cache everything */
 self.addEventListener("install", event => {
